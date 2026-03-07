@@ -7,6 +7,10 @@ import (
 
 type Input struct{}
 
+func init() {
+	// get secrets, initialise clients
+}
+
 func handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	resp := events.APIGatewayProxyResponse{
 		StatusCode:        400,

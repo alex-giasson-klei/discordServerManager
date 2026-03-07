@@ -8,4 +8,7 @@ updateAWS:
     --publish
 deploy: build package updateAWS
 invoke:
-	aws lambda invoke --function-name discordGameServerBot outfile
+	aws lambda invoke --function-name discordGameServerBot \
+	--cli-binary-format raw-in-base64-out \
+	--payload '{"foo":"bar"}' \
+	response.json
