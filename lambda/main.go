@@ -43,6 +43,8 @@ func handler(ctx context.Context, req events.LambdaFunctionURLRequest) (events.L
 		return events.LambdaFunctionURLResponse{StatusCode: 400}, nil
 	}
 
+	log.Printf("%+v", interaction)
+
 	resp, err := responseForInteraction(interaction)
 	if err != nil {
 		return events.LambdaFunctionURLResponse{StatusCode: 500}, nil
@@ -92,5 +94,18 @@ func responsePong() (events.LambdaFunctionURLResponse, error) {
 
 // Slash command
 func responseApplicationCommand(interaction discordgo.Interaction) (events.LambdaFunctionURLResponse, error) {
-	return events.LambdaFunctionURLResponse{}, nil
+	data := interaction.ApplicationCommandData()
+
+	resp := discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "You ran command: " + data.Name,
+		},
+	}
+	body, err := json.Marshal(resp)
+	if err != nil {
+		return events.LambdaFunctionURLResponse{}, err
+	}
+
+	return events.LambdaFunctionURLResponse{StatusCode: 200, Body: string(body), Headers: map[string]string{"Content-Type": "application/json"}}, nil
 }
