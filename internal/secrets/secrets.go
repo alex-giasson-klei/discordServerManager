@@ -1,4 +1,4 @@
-package internal
+package secrets
 
 import (
 	"context"
@@ -21,6 +21,7 @@ type LambdaSecrets struct {
 	DiscordAppID     string
 	DiscordToken     string
 	DiscordPublicKey string
+	GuildIDs         []string
 }
 
 func GetSecretsWithSDK(ctx context.Context) error {
