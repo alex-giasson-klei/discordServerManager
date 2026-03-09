@@ -10,15 +10,15 @@ const (
 
 var Commands = []*discordgo.ApplicationCommand{
 	{
-		Name:        string(CommandStartServer),
+		Name:        CommandStartServer,
 		Description: "Start a Core Keeper server",
 	},
 	{
-		Name:        string(CommandStopServer),
+		Name:        CommandStopServer,
 		Description: "Stop a Core Keeper server",
 	},
 	{
-		Name:        string(CommandStatus),
+		Name:        CommandStatus,
 		Description: "Check server status",
 	},
 }

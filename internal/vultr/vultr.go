@@ -50,15 +50,15 @@ func (vl *VultrLayer) ListInstances(ctx context.Context) ([]govultr.Instance, er
 	return instances, nil
 }
 
-func (vl *VultrLayer) GetSingleServerInstanceByLabel(ctx context.Context, label string) (instanceID string, err error) {
+func (vl *VultrLayer) GetSingleServerInstanceByLabel(ctx context.Context, label string) (*govultr.Instance, error) {
 	instances, meta, resp, err := vl.vultrClient.Instance.List(ctx, &govultr.ListOptions{Label: label})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	resp.Body.Close()
 	_ = meta
 	if len(instances) > 1 {
-		return "", fmt.Errorf("more than one instance found for label %s", label)
+		return nil, fmt.Errorf("more than one instance found for label %s", label)
 	}
-	return instances[0].ID, nil
+	return &instances[0], nil
 }

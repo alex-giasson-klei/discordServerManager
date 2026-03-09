@@ -22,6 +22,7 @@ func main() {
 }
 
 func handler(ctx context.Context, req events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
+	log.Printf("%+v", req)
 	vultrLayer := vultrlayer.New(ctx, secrets.Secrets.VultrAPIKey)
 	bot := gameServerManagerBot.New(vultrLayer)
 
