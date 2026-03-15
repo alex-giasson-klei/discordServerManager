@@ -11,19 +11,36 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bwmarrin/discordgo"
 )
 
 type Manager struct {
-	vultrLayer *vultrlayer.VultrLayer
+	vultrLayer  *vultrlayer.VultrLayer
+	s3Presigner *s3.PresignClient
 }
 
-func New(vultrLayer *vultrlayer.VultrLayer) *Manager {
+func New(vultrLayer *vultrlayer.VultrLayer, s3Presigner *s3.PresignClient) *Manager {
 	return &Manager{
-		vultrLayer: vultrLayer,
+		vultrLayer:  vultrLayer,
+		s3Presigner: s3Presigner,
 	}
+}
+
+// GeneratePresignedGetURL returns a pre-signed S3 GET URL valid for the given duration.
+func (m *Manager) GeneratePresignedGetURL(ctx context.Context, bucket, key string, expiry time.Duration) (string, error) {
+	req, err := m.s3Presigner.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	}, s3.WithPresignExpires(expiry))
+	if err != nil {
+		return "", fmt.Errorf("failed to generate pre-signed URL for s3://%s/%s: %w", bucket, key, err)
+	}
+	return req.URL, nil
 }
 
 func (m *Manager) VerifyDiscordInteractionRequest(req *events.LambdaFunctionURLRequest, publicKey string) (bool, error) {

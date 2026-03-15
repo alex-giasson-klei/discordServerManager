@@ -8,7 +8,12 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const SingleServerLabel = "SingleCoreKeeperServer"
+const (
+	MaxServerCount = 3
+	InstancePlan   = "vx1-g-2c-8g-120s"
+	InstanceRegion = "sea"
+	InstanceOSID   = 2284 // Ubuntu 24.04
+)
 
 type VultrLayer struct {
 	vultrClient *govultr.Client
@@ -50,15 +55,36 @@ func (vl *VultrLayer) ListInstances(ctx context.Context) ([]govultr.Instance, er
 	return instances, nil
 }
 
-func (vl *VultrLayer) GetSingleServerInstanceByLabel(ctx context.Context, label string) (*govultr.Instance, error) {
-	instances, meta, resp, err := vl.vultrClient.Instance.List(ctx, &govultr.ListOptions{Label: label})
+func (vl *VultrLayer) GetInstanceByLabel(ctx context.Context, label string) (*govultr.Instance, error) {
+	instances, err := vl.ListInstances(ctx)
 	if err != nil {
 		return nil, err
 	}
-	resp.Body.Close()
-	_ = meta
-	if len(instances) > 1 {
-		return nil, fmt.Errorf("more than one instance found for label %s", label)
+	for i := range instances {
+		if instances[i].Label == label {
+			return &instances[i], nil
+		}
 	}
-	return &instances[0], nil
+	return nil, fmt.Errorf("no instance found with label %q", label)
+}
+
+func (vl *VultrLayer) CreateInstance(ctx context.Context, label, startupScript string) (*govultr.Instance, error) {
+	osID := InstanceOSID
+	req := &govultr.InstanceCreateReq{
+		Region:   InstanceRegion,
+		Plan:     InstancePlan,
+		OsID:     osID,
+		Label:    label,
+		UserData: startupScript,
+	}
+	instance, resp, err := vl.vultrClient.Instance.Create(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create instance: %w", err)
+	}
+	resp.Body.Close()
+	return instance, nil
+}
+
+func (vl *VultrLayer) DestroyInstance(ctx context.Context, instanceID string) error {
+	return vl.vultrClient.Instance.Delete(ctx, instanceID)
 }

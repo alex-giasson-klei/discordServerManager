@@ -18,20 +18,25 @@ type HandlerResult struct {
 }
 
 var Handlers = map[string]func(context.Context, *discordgo.InteractionCreate, *Manager) (*HandlerResult, error){
-	CommandStartServer: handlerStartServer,
-	CommandStopServer:  handlerStopServer,
-	CommandStatus:      handlerStatus,
-	CommandTest:        handlerTest,
+	CommandStartServer:   handlerStartServer,
+	CommandStartNewWorld: handlerStartServerNew,
+	CommandStopServer:    handlerStopServer,
+	CommandStatus:        handlerStatus,
+	CommandTest:          handlerTest,
 }
 
 func handlerTest(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*HandlerResult, error) {
 	return &HandlerResult{
 		Response: &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+			//Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "test",
+			},
 		},
-		DeferredWork: func() error {
-			return manager.startTest(ctx, interaction)
-		},
+		//DeferredWork: func() error {
+		//	return manager.startTest(ctx, interaction)
+		//},
 		AcknowledgementResponse: "Test command received, this may take a few minutes...",
 	}, nil
 }

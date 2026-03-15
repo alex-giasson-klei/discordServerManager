@@ -22,6 +22,7 @@ type LambdaSecrets struct {
 	DiscordToken     string
 	DiscordPublicKey string
 	GuildIDs         []string
+	GuildWebhooks    map[string]string
 }
 
 func GetSecretsWithSDK(ctx context.Context) error {
