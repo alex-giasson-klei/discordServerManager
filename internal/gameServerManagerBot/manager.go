@@ -87,8 +87,21 @@ func (m *Manager) handleInteraction(ctx context.Context, interaction discordgo.I
 			return unknownCommandResponse()
 		}
 
-		resp, err := handler(ctx, &discordgo.InteractionCreate{Interaction: &interaction}, m)
-		body, err := json.Marshal(resp)
+		result, err := handler(ctx, &discordgo.InteractionCreate{Interaction: &interaction}, m)
+		if err != nil {
+			return events.LambdaFunctionURLResponse{}, fmt.Errorf("handler error: %w", err)
+		}
+
+		if result.DeferredWork != nil {
+			if ackErr := acknowledgeInteraction(&interaction, result.AcknowledgementResponse); ackErr != nil {
+				log.Printf("Failed to acknowledge interaction: %s", ackErr)
+			}
+			if workErr := result.DeferredWork(); workErr != nil {
+				log.Printf("Error in deferred work: %s", workErr)
+			}
+		}
+
+		body, err := json.Marshal(result.Response)
 		if err != nil {
 			return events.LambdaFunctionURLResponse{}, fmt.Errorf("can't marshal interaction response to json: %w", err)
 		}

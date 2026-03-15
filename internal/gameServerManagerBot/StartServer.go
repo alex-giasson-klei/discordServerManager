@@ -9,47 +9,48 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func handlerStartServer(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*discordgo.InteractionResponse, error) {
-	go manager.startServer(interaction)
-	return &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: "Server starting, this may take a minute...",
+func handlerStartServer(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*HandlerResult, error) {
+	return &HandlerResult{
+		Response: &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		},
+		DeferredWork: func() error {
+			return manager.startServer(ctx, interaction)
 		},
 	}, nil
 }
 
-func (m *Manager) startServer(interaction *discordgo.InteractionCreate) {
+func (m *Manager) startServer(ctx context.Context, interaction *discordgo.InteractionCreate) error {
 	log.Printf("getting server instance")
-	ctx := context.Background()
-	followupErr := sendFollowup(interaction.Interaction, "Getting server instance...")
-	if followupErr != nil {
-		log.Printf("Error sending followup: %s", followupErr)
+	if err := sendFollowup(ctx, interaction.Interaction, "Getting server instance..."); err != nil {
+		log.Printf("Error sending followup: %s", err)
 	}
+
 	log.Printf("Getting instance by label %s", vultrlayer.SingleServerLabel)
 	instance, err := m.vultrLayer.GetSingleServerInstanceByLabel(ctx, vultrlayer.SingleServerLabel)
 	if err != nil {
 		log.Printf("Error getting vultr instance: %s", err)
-		if followupErr := sendFollowup(interaction.Interaction, fmt.Sprintf("Error getting instance by label: %s", err)); followupErr != nil {
+		if followupErr := sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Error getting instance by label: %s", err)); followupErr != nil {
 			log.Printf("Error sending followup: %s", followupErr)
 		}
-		return
+		return err
 	}
 
-	if followupErr := sendFollowup(interaction.Interaction, fmt.Sprintf("Starting server %s %s", instance.ID, instance.Label)); followupErr != nil {
-		log.Printf("Error sending followup: %s", followupErr)
+	if err := sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Starting server %s %s", instance.ID, instance.Label)); err != nil {
+		log.Printf("Error sending followup: %s", err)
 	}
 	log.Printf("Starting server %s %s", instance.ID, instance.Label)
-	err = m.vultrLayer.StartInstance(ctx, instance.ID)
-	if err != nil {
+
+	if err := m.vultrLayer.StartInstance(ctx, instance.ID); err != nil {
 		log.Printf("Error starting server: %s", err)
-		if followupErr := sendFollowup(interaction.Interaction, fmt.Sprintf("Error starting instance: %s", err)); followupErr != nil {
+		if followupErr := sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Error starting instance: %s", err)); followupErr != nil {
 			log.Printf("Error sending followup: %s", followupErr)
 		}
-		return
+		return err
 	}
 
-	if followupErr := sendFollowup(interaction.Interaction, "Server started"); followupErr != nil {
-		log.Printf("Error sending followup: %s", followupErr)
+	if err := sendFollowup(ctx, interaction.Interaction, "Server started"); err != nil {
+		log.Printf("Error sending followup: %s", err)
 	}
+	return nil
 }

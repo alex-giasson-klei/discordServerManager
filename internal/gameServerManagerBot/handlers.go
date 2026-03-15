@@ -8,27 +8,39 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-var Handlers = map[string]func(context.Context, *discordgo.InteractionCreate, *Manager) (*discordgo.InteractionResponse, error){
+// HandlerResult holds the immediate interaction response and optional deferred work.
+// If DeferredWork is set, handleInteraction will ACK Discord immediately via the
+// callback API, run DeferredWork synchronously, then return the HTTP response.
+type HandlerResult struct {
+	Response                *discordgo.InteractionResponse
+	DeferredWork            func() error
+	AcknowledgementResponse string
+}
+
+var Handlers = map[string]func(context.Context, *discordgo.InteractionCreate, *Manager) (*HandlerResult, error){
 	CommandStartServer: handlerStartServer,
 	CommandStopServer:  handlerStopServer,
 	CommandStatus:      handlerStatus,
 	CommandTest:        handlerTest,
 }
 
-func handlerTest(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*discordgo.InteractionResponse, error) {
-	go manager.startTest(interaction)
-	return &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: "Test response",
+func handlerTest(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*HandlerResult, error) {
+	return &HandlerResult{
+		Response: &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 		},
+		DeferredWork: func() error {
+			return manager.startTest(ctx, interaction)
+		},
+		AcknowledgementResponse: "Test command received, this may take a few minutes...",
 	}, nil
 }
 
-func (m *Manager) startTest(interaction *discordgo.InteractionCreate) {
+func (m *Manager) startTest(ctx context.Context, interaction *discordgo.InteractionCreate) error {
 	time.Sleep(time.Second * 2)
-	followupErr := sendFollowup(interaction.Interaction, "Followup test response")
-	if followupErr != nil {
-		log.Printf("Error sending followup: %s", followupErr)
+	if err := sendFollowup(ctx, interaction.Interaction, "Followup test response"); err != nil {
+		log.Printf("Error sending followup: %s", err)
+		return err
 	}
+	return nil
 }
