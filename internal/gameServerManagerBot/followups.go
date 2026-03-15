@@ -17,10 +17,13 @@ import (
 // acknowledgeInteraction sends a deferred response to Discord's interaction callback
 // endpoint immediately, allowing the Lambda to continue working before returning.
 func acknowledgeInteraction(interaction *discordgo.Interaction, acknowledgementResponse string) error {
+	if acknowledgementResponse == "" {
+		acknowledgementResponse = "Request received. This may take a few minutes..."
+	}
+
 	url := discord.BaseURL + fmt.Sprintf("/interactions/%s/%s/callback", interaction.ID, interaction.Token)
 
 	response := &discordgo.InteractionResponse{
-		//Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: acknowledgementResponse,
@@ -52,8 +55,6 @@ func acknowledgeInteraction(interaction *discordgo.Interaction, acknowledgementR
 }
 
 func sendFollowup(ctx context.Context, interaction *discordgo.Interaction, msg string) error {
-	log.Printf("sending followup")
-
 	if interaction == nil {
 		return fmt.Errorf("interaction is nil")
 	}

@@ -97,6 +97,7 @@ func (m *Manager) handleInteraction(ctx context.Context, interaction discordgo.I
 				log.Printf("Failed to acknowledge interaction: %s", ackErr)
 			}
 			if workErr := result.DeferredWork(); workErr != nil {
+				_ = sendFollowup(ctx, &interaction, workErr.Error())
 				log.Printf("Error in deferred work: %s", workErr)
 			}
 		}
