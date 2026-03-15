@@ -7,6 +7,8 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+const BaseURL = "https://discord.com/api/v10"
+
 func NewDiscordSessionToken(token string) string {
 	return "Bot " + token
 }

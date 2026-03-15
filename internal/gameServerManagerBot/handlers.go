@@ -2,6 +2,8 @@ package gameServerManagerBot
 
 import (
 	"context"
+	"log"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -10,33 +12,23 @@ var Handlers = map[string]func(context.Context, *discordgo.InteractionCreate, *M
 	CommandStartServer: handlerStartServer,
 	CommandStopServer:  handlerStopServer,
 	CommandStatus:      handlerStatus,
+	CommandTest:        handlerTest,
 }
 
-func handlerStartServer(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*discordgo.InteractionResponse, error) {
-	go manager.startServer(interaction)
+func handlerTest(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*discordgo.InteractionResponse, error) {
+	go manager.startTest(interaction)
 	return &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: "Server starting, this may take a minute...",
+			Content: "Test response",
 		},
 	}, nil
 }
 
-func handlerStopServer(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*discordgo.InteractionResponse, error) {
-	return &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: "Server stopping...",
-		},
-	}, nil
-}
-
-func handlerStatus(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*discordgo.InteractionResponse, error) {
-	status := "some status"
-	return &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: "Server status: " + status,
-		},
-	}, nil
+func (m *Manager) startTest(interaction *discordgo.InteractionCreate) {
+	time.Sleep(time.Second * 2)
+	followupErr := sendFollowup(interaction.Interaction, "Getting server instance...")
+	if followupErr != nil {
+		log.Printf("Error sending followup: %s", followupErr)
+	}
 }

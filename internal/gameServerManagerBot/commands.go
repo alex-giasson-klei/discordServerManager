@@ -6,6 +6,7 @@ const (
 	CommandStartServer = "startserver"
 	CommandStopServer  = "stopserver"
 	CommandStatus      = "status"
+	CommandTest        = "test"
 )
 
 var Commands = []*discordgo.ApplicationCommand{
@@ -20,5 +21,9 @@ var Commands = []*discordgo.ApplicationCommand{
 	{
 		Name:        CommandStatus,
 		Description: "Check server status",
+	},
+	{
+		Name:        CommandTest,
+		Description: "Test Command",
 	},
 }
