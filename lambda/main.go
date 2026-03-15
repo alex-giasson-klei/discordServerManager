@@ -26,7 +26,10 @@ func main() {
 func handler(ctx context.Context, req events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
 	log.Printf("%+v", req)
 
-	vultrLayer := vultrlayer.New(ctx, secrets.Secrets.VultrAPIKey)
+	vultrLayer, err := vultrlayer.New(ctx, secrets.Secrets.VultrAPIKey)
+	if err != nil {
+		log.Fatalf("Error creating vultr layer: %s", err)
+	}
 
 	awsCfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {

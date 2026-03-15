@@ -1,7 +1,9 @@
 package vultrlayer
 
 import (
+	"4dmiral/discordServerManager/internal/secrets"
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/vultr/govultr/v3"
@@ -15,17 +17,25 @@ const (
 	InstanceOSID   = 2284 // Ubuntu 24.04
 )
 
+var sshKeyID string
+
 type VultrLayer struct {
 	vultrClient *govultr.Client
 }
 
-func New(ctx context.Context, apiKey string) *VultrLayer {
+func New(ctx context.Context, apiKey string) (*VultrLayer, error) {
 	config := &oauth2.Config{}
 	tokenSrc := config.TokenSource(ctx, &oauth2.Token{AccessToken: apiKey})
 	vultrClient := govultr.NewClient(oauth2.NewClient(ctx, tokenSrc))
 	vultrClient.SetRateLimit(500)
 
-	return &VultrLayer{vultrClient: vultrClient}
+	sshKey, _, err := vultrClient.SSHKey.Get(ctx, secrets.Secrets.VultrSSHKeyID)
+	if err != nil {
+		return nil, err
+	}
+	sshKeyID = sshKey.ID
+
+	return &VultrLayer{vultrClient: vultrClient}, nil
 }
 
 func (vl *VultrLayer) StartInstance(ctx context.Context, instanceID string) error {
@@ -75,7 +85,9 @@ func (vl *VultrLayer) CreateInstance(ctx context.Context, label, startupScript s
 		Plan:     InstancePlan,
 		OsID:     osID,
 		Label:    label,
-		UserData: startupScript,
+		Hostname: label,
+		UserData: base64.StdEncoding.EncodeToString([]byte(startupScript)),
+		SSHKeys:  []string{sshKeyID},
 	}
 	instance, resp, err := vl.vultrClient.Instance.Create(ctx, req)
 	if err != nil {

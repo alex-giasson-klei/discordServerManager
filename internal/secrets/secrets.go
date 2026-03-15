@@ -23,6 +23,7 @@ type LambdaSecrets struct {
 	DiscordPublicKey string
 	GuildIDs         []string
 	GuildWebhooks    map[string]string
+	VultrSSHKeyID    string
 }
 
 func GetSecretsWithSDK(ctx context.Context) error {
