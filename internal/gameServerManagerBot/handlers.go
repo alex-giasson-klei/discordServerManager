@@ -27,7 +27,7 @@ func handlerTest(ctx context.Context, interaction *discordgo.InteractionCreate, 
 
 func (m *Manager) startTest(interaction *discordgo.InteractionCreate) {
 	time.Sleep(time.Second * 2)
-	followupErr := sendFollowup(interaction.Interaction, "Getting server instance...")
+	followupErr := sendFollowup(interaction.Interaction, "Followup test response")
 	if followupErr != nil {
 		log.Printf("Error sending followup: %s", followupErr)
 	}
