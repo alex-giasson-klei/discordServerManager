@@ -16,7 +16,10 @@ import (
 	schedulertypes "github.com/aws/aws-sdk-go-v2/service/scheduler/types"
 )
 
-const autoShutdownDuration = 5 * time.Hour
+const (
+	autoShutdownDuration  = 5 * time.Hour
+	autoShutdownGroupName = "gameServerAutoShutdown"
+)
 
 // AutoShutdownEvent is the payload EventBridge Scheduler sends to the Lambda
 // when the auto-shutdown timer fires.
@@ -60,7 +63,7 @@ func (m *Manager) CreateAutoShutdownSchedule(ctx context.Context, label, guildID
 			Input:   aws.String(string(inputJSON)),
 		},
 		ActionAfterCompletion: schedulertypes.ActionAfterCompletionDelete,
-		GroupName:             aws.String("gameServerAutoShutdown"),
+		GroupName:             aws.String(autoShutdownGroupName),
 	})
 	if err != nil {
 		return fmt.Errorf("create schedule %q: %w", scheduleName, err)
@@ -73,7 +76,8 @@ func (m *Manager) CreateAutoShutdownSchedule(ctx context.Context, label, guildID
 func (m *Manager) DeleteAutoShutdownSchedule(ctx context.Context, label string) {
 	scheduleName := autoShutdownScheduleName(label)
 	_, err := m.schedulerClient.DeleteSchedule(ctx, &scheduler.DeleteScheduleInput{
-		Name: aws.String(scheduleName),
+		Name:      aws.String(scheduleName),
+		GroupName: aws.String(autoShutdownGroupName),
 	})
 	if err != nil {
 		// Schedule may have already fired and auto-deleted; just log.
@@ -122,7 +126,10 @@ func (m *Manager) HandleAutoShutdown(ctx context.Context, event AutoShutdownEven
 		log.Printf("warning: save rotation failed for %q (proceeding with shutdown): %v", event.Label, err)
 	}
 
-	if err := m.callAgentShutdown(ctx, instance.MainIP, uploadURL); err != nil {
+	if err := m.checkAgentReady(instance.MainIP); err != nil {
+		log.Printf("auto-shutdown: agent not ready for %q, force-destroying without save: %v", event.Label, err)
+		notify(fmt.Sprintf("⚠️ Server `%s` agent was unreachable at shutdown time — destroying without saving.", event.Label))
+	} else if err := m.callAgentShutdown(ctx, instance.MainIP, uploadURL); err != nil {
 		notify(fmt.Sprintf("❌ Auto-shutdown: agent shutdown failed — instance NOT destroyed: %v", err))
 		return fmt.Errorf("auto-shutdown agent: %w", err)
 	}

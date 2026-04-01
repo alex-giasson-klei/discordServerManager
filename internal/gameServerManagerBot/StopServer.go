@@ -64,6 +64,10 @@ func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.Interac
 		log.Printf("warning: save rotation failed for %q (proceeding with shutdown): %v", label, err)
 	}
 
+	if err := m.checkAgentReady(instance.MainIP); err != nil {
+		return fmt.Errorf("server `%s` is still initializing — wait a few minutes and try again", label)
+	}
+
 	if err := sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Saving world `%s`...", worldName)); err != nil {
 		log.Printf("Error sending followup: %s", err)
 	}
@@ -83,6 +87,20 @@ func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.Interac
 	m.DeleteAutoShutdownSchedule(ctx, label)
 
 	return sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Server `%s` saved and destroyed.", label))
+}
+
+func (m *Manager) checkAgentReady(ip string) error {
+	url := fmt.Sprintf("http://%s:%d/health", ip, agentPort)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return fmt.Errorf("agent not reachable: %w", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("agent health check returned %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func (m *Manager) callAgentShutdown(ctx context.Context, ip, uploadURL string) error {
