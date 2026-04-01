@@ -106,11 +106,7 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 		return fmt.Errorf("cannot create auto-shutdown schedule (instance NOT created): %w", err)
 	}
 
-	if err := sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Provisioning instance `%s`...", label)); err != nil {
-		log.Printf("Error sending followup: %s", err)
-	}
-
-	instance, err := m.vultrLayer.CreateInstance(ctx, label, startupScript)
+	_, err = m.vultrLayer.CreateInstance(ctx, label, startupScript)
 	if err != nil {
 		if schedErr := m.DeleteAutoShutdownSchedule(ctx, label); schedErr != nil {
 			log.Printf("warning: failed to clean up auto-shutdown schedule for %q after instance creation failure: %v", label, schedErr)
@@ -119,8 +115,8 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 	}
 
 	return sendFollowup(ctx, interaction.Interaction, fmt.Sprintf(
-		"Server `%s` created (ID: `%s`). It will be ready in a few minutes. Auto-shutdown in 5 hours.",
-		instance.Label, instance.ID,
+		"`%s` world `%s` created. The Join Code will be posted in a few minutes when it's ready! Auto-shutdown is in %s. To stop the server manually, use `/stopserver`",
+		gameName, worldName, AutoShutdownDuration.String(),
 	))
 }
 

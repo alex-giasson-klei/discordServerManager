@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	autoShutdownDuration  = 5 * time.Hour
+	AutoShutdownDuration  = 5 * time.Hour
 	autoShutdownGroupName = "gameServerAutoShutdown"
 )
 
@@ -49,7 +49,7 @@ func (m *Manager) CreateAutoShutdownSchedule(ctx context.Context, label, guildID
 		return fmt.Errorf("marshal auto-shutdown event: %w", err)
 	}
 
-	fireAt := time.Now().UTC().Add(autoShutdownDuration)
+	fireAt := time.Now().UTC().Add(AutoShutdownDuration)
 	expression := fmt.Sprintf("at(%s)", fireAt.Format("2006-01-02T15:04:05"))
 
 	_, err = m.schedulerClient.CreateSchedule(ctx, &scheduler.CreateScheduleInput{

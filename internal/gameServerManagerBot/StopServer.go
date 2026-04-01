@@ -73,16 +73,8 @@ func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.Interac
 		return fmt.Errorf("cannot back up existing save for %q (shutdown cancelled for safety): %w", label, err)
 	}
 
-	if err := sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Saving world `%s`...", worldName)); err != nil {
-		log.Printf("Error sending followup: %s", err)
-	}
-
 	if err := m.callAgentShutdown(ctx, instance.MainIP, uploadURL); err != nil {
 		return fmt.Errorf("agent shutdown failed for %q (instance NOT destroyed — save may not have uploaded): %w", label, err)
-	}
-
-	if err := sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("World `%s` saved to S3, destroying instance...", worldName)); err != nil {
-		log.Printf("Error sending followup: %s", err)
 	}
 
 	if err := m.vultrLayer.DestroyInstance(ctx, instance.ID); err != nil {
@@ -93,7 +85,7 @@ func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.Interac
 		log.Printf("warning: failed to delete auto-shutdown schedule for %q: %v", label, err)
 	}
 
-	return sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Server `%s` saved and destroyed.", label))
+	return sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("`%s` world `%s` saved and destroyed.", gameName, worldName))
 }
 
 func (m *Manager) checkAgentReady(ip string) error {
