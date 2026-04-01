@@ -20,7 +20,7 @@ type HandlerResult struct {
 var Handlers = map[string]func(context.Context, *discordgo.InteractionCreate, *Manager) (*HandlerResult, error){
 	CommandStartServer: handlerStartServer,
 	CommandStopServer:  handlerStopServer,
-	CommandStatus:      handlerStatus,
+	CommandList:        handlerList,
 	//CommandTest:        handlerTest,
 }
 

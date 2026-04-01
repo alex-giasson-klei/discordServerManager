@@ -13,13 +13,13 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func handlerStatus(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*HandlerResult, error) {
+func handlerList(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*HandlerResult, error) {
 	return &HandlerResult{
 		Response: &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 		},
 		DeferredWork: func() error {
-			return manager.statusReport(ctx, interaction)
+			return manager.listServers(ctx, interaction)
 		},
 		AcknowledgementResponse: "Fetching server list...",
 	}, nil
@@ -51,7 +51,7 @@ func fetchJoinInfo(ip string) agentInfoResponse {
 	return info
 }
 
-func (m *Manager) statusReport(ctx context.Context, interaction *discordgo.InteractionCreate) error {
+func (m *Manager) listServers(ctx context.Context, interaction *discordgo.InteractionCreate) error {
 	instances, err := m.vultrLayer.ListInstances(ctx)
 	if err != nil {
 		return fmt.Errorf("cannot list instances: %w", err)

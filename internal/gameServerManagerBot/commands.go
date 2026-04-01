@@ -9,7 +9,7 @@ import (
 const (
 	CommandStartServer = "startserver"
 	CommandStopServer  = "stopserver"
-	CommandStatus      = "list"
+	CommandList        = "list"
 	CommandTest        = "test"
 )
 
@@ -66,7 +66,7 @@ func init() {
 			},
 		},
 		{
-			Name:        CommandStatus,
+			Name:        CommandList,
 			Description: "List running game servers",
 		},
 		{
