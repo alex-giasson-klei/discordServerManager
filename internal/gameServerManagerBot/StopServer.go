@@ -57,7 +57,7 @@ func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.Interac
 
 	instance, err := m.vultrLayer.GetInstanceByLabel(ctx, label)
 	if err != nil {
-		return fmt.Errorf("cannot find server with label %q: %w", label, err)
+		return fmt.Errorf("cannot find %q world %q. Use `/list`: %w", gameName, worldName, err)
 	}
 	if instance.MainIP == "" {
 		return fmt.Errorf("instance %q has no IP yet — wait for it to finish provisioning", label)

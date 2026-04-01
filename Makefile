@@ -17,6 +17,8 @@ updateAWS:
 	aws lambda update-function-code --function-name discordGameServerBot \
     --zip-file fileb://function.zip \
     --publish \
+    --no-cli-pager \
+    --query '{FunctionName: FunctionName, Version: Version, LastUpdateStatus: LastUpdateStatus}' \
     --profile ajgia
 deploy: buildLambda registerCommands package updateAWS uploadGameserverAgent
 invoke:

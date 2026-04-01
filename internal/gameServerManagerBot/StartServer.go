@@ -83,7 +83,7 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 	var saveURL string
 	if isNew {
 		if saveExists {
-			return fmt.Errorf("a save already exists for `%s/%s` — choose a different world name, or use `/stopserver` to delete the existing server first", gameName, worldName)
+			return fmt.Errorf("a save already exists for `%s/%s` — choose a different world name, or use `/startserver new:False` to load %s/%s", gameName, worldName, gameName, worldName)
 		}
 	} else {
 		if !saveExists {
@@ -126,7 +126,7 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 	}
 
 	return sendFollowup(ctx, interaction.Interaction, fmt.Sprintf(
-		"`%s` world `%s` created. The Join Code will be posted in a few minutes when it's ready! Auto-shutdown is in %s. To stop the server manually, use `/stopserver`",
+		"`%s` world `%s` started. The Join Information will be posted in a few minutes when the server is ready! Auto-shutdown is in %s. To stop the server manually, use `/stopserver`",
 		gameName, worldName, AutoShutdownDuration.String(),
 	))
 }

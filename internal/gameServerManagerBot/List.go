@@ -62,27 +62,28 @@ func (m *Manager) listServers(ctx context.Context, interaction *discordgo.Intera
 	}
 
 	type result struct {
-		label    string
 		joinInfo agentInfoResponse
 	}
 	results := make([]result, len(instances))
 	var wg sync.WaitGroup
 	for i, inst := range instances {
 		wg.Add(1)
-		go func(i int, label, ip string) {
+		go func(i int, ip string) {
 			defer wg.Done()
-			results[i] = result{label: label, joinInfo: fetchJoinInfo(ip)}
-		}(i, inst.Label, inst.MainIP)
+			results[i] = result{joinInfo: fetchJoinInfo(ip)}
+		}(i, inst.MainIP)
 	}
 	wg.Wait()
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "**%d server(s) running:**\n", len(instances))
-	for _, r := range results {
-		if r.joinInfo.Ready {
-			fmt.Fprintf(&sb, "• `%s` — join: `%s`\n", r.label, r.joinInfo.JoinInfo)
+	for i, inst := range instances {
+		game := extractGameName(inst.Label)
+		world := extractWorldName(inst.Label)
+		if results[i].joinInfo.Ready {
+			fmt.Fprintf(&sb, "• `%s` world `%s` — join: `%s`\n", game, world, results[i].joinInfo.JoinInfo)
 		} else {
-			fmt.Fprintf(&sb, "• `%s` — ⏳ still starting up\n", r.label)
+			fmt.Fprintf(&sb, "• `%s` world `%s` — ⏳ still starting up\n", game, world)
 		}
 	}
 	return sendFollowup(ctx, interaction.Interaction, sb.String())
