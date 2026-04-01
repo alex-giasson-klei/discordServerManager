@@ -19,6 +19,17 @@ const (
 )
 
 func handlerStartServer(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*HandlerResult, error) {
+	game := optionString(interaction, "game")
+	world := optionString(interaction, "world")
+	isNew := optionBool(interaction, "new")
+
+	var ack string
+	if isNew {
+		ack = fmt.Sprintf("Creating new `%s` world `%s`... this may take a few minutes.", game, world)
+	} else {
+		ack = fmt.Sprintf("Loading `%s` world `%s`... this may take a few minutes.", game, world)
+	}
+
 	return &HandlerResult{
 		Response: &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -26,7 +37,7 @@ func handlerStartServer(ctx context.Context, interaction *discordgo.InteractionC
 		DeferredWork: func() error {
 			return manager.startServer(ctx, interaction)
 		},
-		AcknowledgementResponse: "Creating server, this may take a few minutes...",
+		AcknowledgementResponse: ack,
 	}, nil
 }
 

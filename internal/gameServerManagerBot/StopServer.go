@@ -23,6 +23,10 @@ type agentShutdownPayload struct {
 }
 
 func handlerStopServer(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*HandlerResult, error) {
+	game := optionString(interaction, "game")
+	world := optionString(interaction, "world")
+	ack := fmt.Sprintf("Saving `%s` world `%s` and destroying server...", game, world)
+
 	return &HandlerResult{
 		Response: &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -30,7 +34,7 @@ func handlerStopServer(ctx context.Context, interaction *discordgo.InteractionCr
 		DeferredWork: func() error {
 			return manager.stopServer(ctx, interaction)
 		},
-		AcknowledgementResponse: "Saving world and destroying server, please wait...",
+		AcknowledgementResponse: ack,
 	}, nil
 }
 
