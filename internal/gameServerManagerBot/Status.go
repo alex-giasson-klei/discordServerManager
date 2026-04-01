@@ -1,6 +1,7 @@
 package gameServerManagerBot
 
 import (
+	"4dmiral/discordServerManager/internal/secrets"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -32,7 +33,12 @@ type agentInfoResponse struct {
 func fetchJoinInfo(ip string) agentInfoResponse {
 	url := fmt.Sprintf("http://%s:%d/info", ip, agentPort)
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return agentInfoResponse{}
+	}
+	req.Header.Set("Authorization", "Bearer "+secrets.Secrets.GameServerAgentSecret)
+	resp, err := client.Do(req)
 	if err != nil {
 		return agentInfoResponse{}
 	}

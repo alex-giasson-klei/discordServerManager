@@ -43,7 +43,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/info", handleInfo)
+	mux.HandleFunc("/info", requireAuth(secret, handleInfo))
 	mux.HandleFunc("/shutdown", requireAuth(secret, handleShutdown))
 
 	addr := fmt.Sprintf(":%d", listenPort)
