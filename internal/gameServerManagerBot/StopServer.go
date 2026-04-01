@@ -35,10 +35,21 @@ func handlerStopServer(ctx context.Context, interaction *discordgo.InteractionCr
 }
 
 func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.InteractionCreate) error {
-	label := optionString(interaction, "label")
-	if label == "" {
-		return fmt.Errorf("missing required option: label")
+	gameName := games.GameName(optionString(interaction, "game"))
+	if gameName == "" {
+		return fmt.Errorf("missing required option: game")
 	}
+	worldName := optionString(interaction, "world")
+	if worldName == "" {
+		return fmt.Errorf("missing required option: world")
+	}
+
+	meta, err := games.Meta(gameName)
+	if err != nil {
+		return fmt.Errorf("unrecognised game %q: %w", gameName, err)
+	}
+
+	label := fmt.Sprintf("%s-%s", gameName, worldName)
 
 	instance, err := m.vultrLayer.GetInstanceByLabel(ctx, label)
 	if err != nil {
@@ -48,12 +59,6 @@ func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.Interac
 		return fmt.Errorf("instance %q has no IP yet — wait for it to finish provisioning", label)
 	}
 
-	worldName := extractWorldName(label)
-	gameName := games.GameName(extractGameName(label))
-	meta, err := games.Meta(gameName)
-	if err != nil {
-		return fmt.Errorf("unrecognised game in label %q: %w", label, err)
-	}
 	s3Key := fmt.Sprintf("%s/%s.tar.gz", meta.SaveDirectory, worldName)
 	uploadURL, err := m.GeneratePresignedPutURL(ctx, secrets.Secrets.R2BucketName, s3Key, saveURLExpiry)
 	if err != nil {

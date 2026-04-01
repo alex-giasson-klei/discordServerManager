@@ -48,7 +48,7 @@ func init() {
 					Type:        discordgo.ApplicationCommandOptionBoolean,
 					Name:        "new",
 					Description: "Create a fresh world instead of loading a save (default: false)",
-					Required:    false,
+					Required:    true,
 				},
 			},
 		},
@@ -56,10 +56,11 @@ func init() {
 			Name:        CommandStopServer,
 			Description: "Save and destroy a running server",
 			Options: []*discordgo.ApplicationCommandOption{
+				gameOption,
 				{
 					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "label",
-					Description: "Server label to destroy (e.g. CoreKeeper-myworld)",
+					Name:        "world",
+					Description: "World name",
 					Required:    true,
 				},
 			},
