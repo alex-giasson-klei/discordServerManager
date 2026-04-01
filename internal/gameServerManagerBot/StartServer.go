@@ -2,23 +2,24 @@ package gameServerManagerBot
 
 import (
 	vultrlayer "4dmiral/discordServerManager/internal/vultr"
+	"4dmiral/discordServerManager/internal/secrets"
 	"context"
 	"fmt"
 	"log"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
 
 const (
-	s3BucketName  = "game-servers-982247710512-us-west-2-an"
-	gameNameDir   = "CoreKeeper"
-	saveURLExpiry = 24 * time.Hour
+	gameNameDir    = "CoreKeeper"
+	saveURLExpiry  = 24 * time.Hour
+	agentBinaryKey = "bin/gameserver-agent"
+	agentPort      = 8080
 
-	// TODO write a builder function with options for this templating
-	// Current substitution order: SaveURL, WorldName, DiscordWebhookURL
+	// startupScriptTemplate is the cloud-init user-data script for each new VPS.
+	// Substitution order: WorldName, AgentBinaryURL, AgentSecret, SaveURL, DiscordWebhookURL
 	startupScriptTemplate = `#!/bin/bash
 set -e
 
@@ -30,6 +31,13 @@ systemctl start docker
 
 mkdir -p /tmp/core-keeper-data
 mkdir -p /tmp/core-keeper-dedicated
+
+WORLD_NAME="%s"
+
+# Download and start the gameserver management agent
+curl -fSL "%s" -o /usr/local/bin/gameserver-agent
+chmod +x /usr/local/bin/gameserver-agent
+AGENT_SECRET="%s" WORLD_NAME="$WORLD_NAME" nohup /usr/local/bin/gameserver-agent > /var/log/gameserver-agent.log 2>&1 &
 
 SAVE_URL="%s"
 if [ -n "$SAVE_URL" ]; then
@@ -43,10 +51,10 @@ docker pull escaping/core-keeper-dedicated:v2.8.1
 docker run -d \
     --name core-keeper-dedicated \
     --restart unless-stopped \
-    -e WORLD_NAME="%s" \
+    -e WORLD_NAME="$WORLD_NAME" \
     -e MAX_PLAYERS=5 \
-	-e DISCORD_WEBHOOK_URL="%s" \
-	- DISCORD_PLAYER_LEAVE_ENABLED=false \
+    -e DISCORD_WEBHOOK_URL="%s" \
+    -e DISCORD_PLAYER_LEAVE_ENABLED=false \
     -v /tmp/core-keeper-data:/home/steam/core-keeper-data \
     -v /tmp/core-keeper-dedicated:/home/steam/core-keeper-dedicated \
     escaping/core-keeper-dedicated:v2.8.1
@@ -84,25 +92,27 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 		return fmt.Errorf("server limit of %d reached — destroy an existing server before creating a new one", vultrlayer.MaxServerCount)
 	}
 
-	isNew := strings.EqualFold(worldName, "new")
+	label := fmt.Sprintf("corekeeper-%s", worldName)
 
-	var label string
-	if isNew {
-		label = fmt.Sprintf("corekeeper-new-%d", time.Now().UnixMilli())
-	} else {
-		label = fmt.Sprintf("corekeeper-%s", worldName)
+	s3Key := fmt.Sprintf("%s/%s.tar.gz", gameNameDir, worldName)
+	saveURL, err := m.GeneratePresignedGetURL(ctx, secrets.Secrets.R2BucketName, s3Key, saveURLExpiry)
+	if err != nil {
+		return fmt.Errorf("cannot generate save download URL: %w", err)
 	}
 
-	var saveURL string
-	if !isNew {
-		s3Key := fmt.Sprintf("%s/%s.tar.gz", gameNameDir, worldName)
-		saveURL, err = m.GeneratePresignedGetURL(ctx, s3BucketName, s3Key, saveURLExpiry)
-		if err != nil {
-			return fmt.Errorf("cannot generate save download URL: %w", err)
-		}
+	agentBinaryURL, err := m.GeneratePresignedGetURL(ctx, secrets.Secrets.R2BucketName, agentBinaryKey, saveURLExpiry)
+	if err != nil {
+		return fmt.Errorf("cannot generate agent binary URL: %w", err)
 	}
 
-	startupScript := fmt.Sprintf(startupScriptTemplate, saveURL, label)
+	webhookURL := secrets.Secrets.GuildWebhooks[interaction.GuildID]
+	startupScript := fmt.Sprintf(startupScriptTemplate,
+		worldName,
+		agentBinaryURL,
+		secrets.Secrets.GameServerAgentSecret,
+		saveURL,
+		webhookURL,
+	)
 
 	if err := sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Provisioning instance `%s`...", label)); err != nil {
 		log.Printf("Error sending followup: %s", err)

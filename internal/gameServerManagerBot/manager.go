@@ -38,7 +38,19 @@ func (m *Manager) GeneratePresignedGetURL(ctx context.Context, bucket, key strin
 		Key:    aws.String(key),
 	}, s3.WithPresignExpires(expiry))
 	if err != nil {
-		return "", fmt.Errorf("failed to generate pre-signed URL for s3://%s/%s: %w", bucket, key, err)
+		return "", fmt.Errorf("failed to generate pre-signed GET URL for s3://%s/%s: %w", bucket, key, err)
+	}
+	return req.URL, nil
+}
+
+// GeneratePresignedPutURL returns a pre-signed S3 PUT URL valid for the given duration.
+func (m *Manager) GeneratePresignedPutURL(ctx context.Context, bucket, key string, expiry time.Duration) (string, error) {
+	req, err := m.s3Presigner.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	}, s3.WithPresignExpires(expiry))
+	if err != nil {
+		return "", fmt.Errorf("failed to generate pre-signed PUT URL for s3://%s/%s: %w", bucket, key, err)
 	}
 	return req.URL, nil
 }

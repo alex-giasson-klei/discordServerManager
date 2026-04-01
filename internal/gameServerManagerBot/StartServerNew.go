@@ -46,7 +46,18 @@ func (m *Manager) startServerNew(ctx context.Context, interaction *discordgo.Int
 
 	webhookURL := secrets.Secrets.GuildWebhooks[interaction.GuildID]
 
-	startupScript := fmt.Sprintf(startupScriptTemplate, "", worldName, webhookURL)
+	agentBinaryURL, err := m.GeneratePresignedGetURL(ctx, secrets.Secrets.R2BucketName, agentBinaryKey, saveURLExpiry)
+	if err != nil {
+		return fmt.Errorf("cannot generate agent binary URL: %w", err)
+	}
+
+	startupScript := fmt.Sprintf(startupScriptTemplate,
+		worldName,
+		agentBinaryURL,
+		secrets.Secrets.GameServerAgentSecret,
+		"",
+		webhookURL,
+	)
 
 	if err := sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Provisioning instance `%s`...", label)); err != nil {
 		log.Printf("Error sending followup: %s", err)

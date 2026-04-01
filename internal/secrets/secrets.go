@@ -17,13 +17,18 @@ var SecretStoreRegion = os.Getenv("SECRET_STORE_REGION")
 var Secrets LambdaSecrets
 
 type LambdaSecrets struct {
-	VultrAPIKey      string
-	DiscordAppID     string
-	DiscordToken     string
-	DiscordPublicKey string
-	GuildIDs         []string
-	GuildWebhooks    map[string]string
-	VultrSSHKeyID    string
+	VultrAPIKey           string
+	DiscordAppID          string
+	DiscordToken          string
+	DiscordPublicKey      string
+	GuildIDs              []string
+	GuildWebhooks         map[string]string
+	VultrSSHKeyID         string
+	GameServerAgentSecret string
+	R2AccountID           string
+	R2AccessKeyID         string
+	R2SecretAccessKey     string
+	R2BucketName          string
 }
 
 func GetSecretsWithSDK(ctx context.Context) error {
