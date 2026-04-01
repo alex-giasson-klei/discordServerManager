@@ -48,6 +48,8 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 
 	isNew := optionBool(interaction, "new")
 
+	s3Key := fmt.Sprintf("%s/%s.tar.gz", meta.SaveDirectory, worldName)
+
 	instances, err := m.vultrLayer.ListInstances(ctx)
 	if err != nil {
 		return fmt.Errorf("cannot list instances: %w", err)
@@ -62,14 +64,18 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 		return fmt.Errorf("server `%s` is already running", label)
 	}
 
+	saveExists, err := m.SaveExists(ctx, secrets.Secrets.R2BucketName, s3Key)
+	if err != nil {
+		return fmt.Errorf("cannot check for existing save: %w", err)
+	}
+
 	var saveURL string
-	if !isNew {
-		s3Key := fmt.Sprintf("%s/%s.tar.gz", meta.SaveDirectory, worldName)
-		exists, err := m.SaveExists(ctx, secrets.Secrets.R2BucketName, s3Key)
-		if err != nil {
-			return fmt.Errorf("cannot check for existing save: %w", err)
+	if isNew {
+		if saveExists {
+			return fmt.Errorf("a save already exists for `%s/%s` — choose a different world name, or use `/stopserver` to delete the existing server first", gameName, worldName)
 		}
-		if !exists {
+	} else {
+		if !saveExists {
 			return fmt.Errorf("no save found for `%s/%s` — use `/startserver new:True` to create a fresh world", gameName, worldName)
 		}
 		saveURL, err = m.GeneratePresignedGetURL(ctx, secrets.Secrets.R2BucketName, s3Key, saveURLExpiry)

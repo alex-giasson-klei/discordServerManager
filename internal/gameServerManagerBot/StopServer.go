@@ -65,12 +65,12 @@ func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.Interac
 		return fmt.Errorf("cannot generate save upload URL: %w", err)
 	}
 
-	if err := m.RotateSave(ctx, secrets.Secrets.R2BucketName, s3Key); err != nil {
-		log.Printf("warning: save rotation failed for %q (proceeding with shutdown): %v", label, err)
-	}
-
 	if err := m.checkAgentReady(instance.MainIP); err != nil {
 		return fmt.Errorf("server `%s` is still initializing — wait a few minutes and try again", label)
+	}
+
+	if err := m.RotateSave(ctx, secrets.Secrets.R2BucketName, s3Key); err != nil {
+		return fmt.Errorf("cannot back up existing save for %q (shutdown cancelled for safety): %w", label, err)
 	}
 
 	if err := sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Saving world `%s`...", worldName)); err != nil {

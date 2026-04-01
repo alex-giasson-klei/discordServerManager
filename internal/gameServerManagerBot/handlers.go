@@ -21,7 +21,7 @@ var Handlers = map[string]func(context.Context, *discordgo.InteractionCreate, *M
 	CommandStartServer: handlerStartServer,
 	CommandStopServer:  handlerStopServer,
 	CommandStatus:      handlerStatus,
-	CommandTest:        handlerTest,
+	//CommandTest:        handlerTest,
 }
 
 func handlerTest(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*HandlerResult, error) {

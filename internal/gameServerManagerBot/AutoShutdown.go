@@ -128,14 +128,23 @@ func (m *Manager) HandleAutoShutdown(ctx context.Context, event AutoShutdownEven
 		return fmt.Errorf("auto-shutdown generate upload URL: %w", err)
 	}
 
-	if err := m.RotateSave(ctx, secrets.Secrets.R2BucketName, s3Key); err != nil {
-		log.Printf("warning: save rotation failed for %q (proceeding with shutdown): %v", event.Label, err)
-	}
-
 	if err := m.checkAgentReady(instance.MainIP); err != nil {
 		log.Printf("auto-shutdown: agent not ready for %q, force-destroying without save: %v", event.Label, err)
 		notify(fmt.Sprintf("⚠️ Server `%s` agent was unreachable at shutdown time — destroying without saving.", event.Label))
-	} else if err := m.callAgentShutdown(ctx, instance.MainIP, uploadURL); err != nil {
+		if err := m.vultrLayer.DestroyInstance(ctx, instance.ID); err != nil {
+			notify(fmt.Sprintf("❌ Auto-shutdown: failed to destroy instance: %v", err))
+			return fmt.Errorf("auto-shutdown destroy (no-save path): %w", err)
+		}
+		notify(fmt.Sprintf("🗑️ Server `%s` destroyed (no save — agent was unreachable).", event.Label))
+		return nil
+	}
+
+	if err := m.RotateSave(ctx, secrets.Secrets.R2BucketName, s3Key); err != nil {
+		notify(fmt.Sprintf("❌ Auto-shutdown: cannot back up existing save — shutdown cancelled for safety: %v", err))
+		return fmt.Errorf("auto-shutdown rotate save: %w", err)
+	}
+
+	if err := m.callAgentShutdown(ctx, instance.MainIP, uploadURL); err != nil {
 		notify(fmt.Sprintf("❌ Auto-shutdown: agent shutdown failed — instance NOT destroyed: %v", err))
 		return fmt.Errorf("auto-shutdown agent: %w", err)
 	}

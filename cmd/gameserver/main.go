@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,8 +24,10 @@ const (
 )
 
 var (
-	containerName string
-	saveDir       string
+	containerName  string
+	saveDir        string
+	shutdownMu     sync.Mutex
+	shutdownCalled bool
 )
 
 func main() {
@@ -69,6 +72,15 @@ func handleShutdown(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	shutdownMu.Lock()
+	if shutdownCalled {
+		shutdownMu.Unlock()
+		http.Error(w, "shutdown already in progress", http.StatusConflict)
+		return
+	}
+	shutdownCalled = true
+	shutdownMu.Unlock()
 
 	var req shutdownRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
