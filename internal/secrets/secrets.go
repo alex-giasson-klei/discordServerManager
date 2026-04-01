@@ -31,8 +31,8 @@ type LambdaSecrets struct {
 	R2BucketName          string
 }
 
-func GetSecretsWithSDK(ctx context.Context) error {
-	cfg, err := config.LoadDefaultConfig(ctx)
+func GetSecretsWithSDK(ctx context.Context, optFns ...func(*config.LoadOptions) error) error {
+	cfg, err := config.LoadDefaultConfig(ctx, optFns...)
 	if err != nil {
 		return fmt.Errorf("error loading AWS SDK config: %s", err)
 	}

@@ -7,11 +7,12 @@ import (
 	"context"
 	"log"
 
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/bwmarrin/discordgo"
 )
 
 func main() {
-	if err := secrets.GetSecretsWithSDK(context.Background()); err != nil {
+	if err := secrets.GetSecretsWithSDK(context.Background(), config.WithSharedConfigProfile("ajgia")); err != nil {
 		log.Fatalf("Error getting secrets: %s", err)
 	}
 
