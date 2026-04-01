@@ -12,6 +12,7 @@ type GameMeta struct {
 	SaveDirectory string // S3 key prefix for saves, e.g. "CoreKeeper"
 	ContainerName string // Docker container name on the VPS
 	SaveDir       string // Path on the VPS that the agent archives
+	JoinInfoPath  string // Path on the VPS where the game writes join info (e.g. a Game ID file)
 }
 
 var (

@@ -26,6 +26,7 @@ const (
 var (
 	containerName  string
 	saveDir        string
+	joinInfoPath   string
 	shutdownMu     sync.Mutex
 	shutdownCalled bool
 )
@@ -34,6 +35,7 @@ func main() {
 	secret := os.Getenv("AGENT_SECRET")
 	containerName = os.Getenv("CONTAINER_NAME")
 	saveDir = os.Getenv("SAVE_DIR")
+	joinInfoPath = os.Getenv("JOIN_INFO_PATH")
 
 	if secret == "" || containerName == "" || saveDir == "" {
 		log.Fatal("AGENT_SECRET, CONTAINER_NAME, and SAVE_DIR env vars must all be set")
@@ -41,6 +43,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/info", handleInfo)
 	mux.HandleFunc("/shutdown", requireAuth(secret, handleShutdown))
 
 	addr := fmt.Sprintf(":%d", listenPort)
@@ -51,6 +54,29 @@ func main() {
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "ok")
+}
+
+type infoResponse struct {
+	Ready    bool   `json:"ready"`
+	JoinInfo string `json:"join_info"`
+}
+
+func handleInfo(w http.ResponseWriter, r *http.Request) {
+	resp := infoResponse{}
+
+	if joinInfoPath != "" {
+		data, err := os.ReadFile(joinInfoPath)
+		if err == nil {
+			info := strings.TrimSpace(string(data))
+			if info != "" {
+				resp.Ready = true
+				resp.JoinInfo = info
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func requireAuth(secret string, next http.HandlerFunc) http.HandlerFunc {

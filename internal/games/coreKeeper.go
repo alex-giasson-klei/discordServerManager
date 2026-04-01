@@ -7,6 +7,7 @@ func init() {
 		SaveDirectory: "CoreKeeper",
 		ContainerName: "core-keeper-dedicated",
 		SaveDir:       "/tmp/core-keeper-data",
+		JoinInfoPath:  "/tmp/core-keeper-data/GameID.txt",
 	}, coreKeeperStartupScriptTemplate)
 }
 
@@ -36,7 +37,7 @@ WORLD_NAME="%s"
 # Download and start the gameserver management agent
 curl -fSL "%s" -o /usr/local/bin/gameserver-agent
 chmod +x /usr/local/bin/gameserver-agent
-AGENT_SECRET="%s" WORLD_NAME="$WORLD_NAME" CONTAINER_NAME="core-keeper-dedicated" SAVE_DIR="/tmp/core-keeper-data" nohup /usr/local/bin/gameserver-agent > /var/log/gameserver-agent.log 2>&1 &
+AGENT_SECRET="%s" WORLD_NAME="$WORLD_NAME" CONTAINER_NAME="core-keeper-dedicated" SAVE_DIR="/tmp/core-keeper-data" JOIN_INFO_PATH="/tmp/core-keeper-data/GameID.txt" nohup /usr/local/bin/gameserver-agent > /var/log/gameserver-agent.log 2>&1 &
 
 SAVE_URL="%s"
 if [ -n "$SAVE_URL" ]; then
