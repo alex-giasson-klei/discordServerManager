@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -75,9 +76,15 @@ func handleShutdown(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("shutdown: stopping container...")
 	if out, err := exec.Command("docker", "stop", "--time", "30", containerName).CombinedOutput(); err != nil {
-		log.Printf("docker stop output: %s", string(out))
-		http.Error(w, fmt.Sprintf("failed to stop container: %v", err), http.StatusInternalServerError)
-		return
+		outStr := string(out)
+		// If the container isn't running, proceed — the save files are still there.
+		if strings.Contains(outStr, "No such container") || strings.Contains(outStr, "is not running") {
+			log.Printf("container not running, proceeding with archive: %s", outStr)
+		} else {
+			log.Printf("docker stop output: %s", outStr)
+			http.Error(w, fmt.Sprintf("failed to stop container: %v", err), http.StatusInternalServerError)
+			return
+		}
 	}
 	log.Println("shutdown: container stopped")
 
@@ -104,15 +111,11 @@ func createTarGz(srcDir, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("create archive file: %w", err)
 	}
-	defer f.Close()
 
 	gw := gzip.NewWriter(f)
-	defer gw.Close()
-
 	tw := tar.NewWriter(gw)
-	defer tw.Close()
 
-	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+	walkErr := filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -144,6 +147,19 @@ func createTarGz(srcDir, destPath string) error {
 		_, err = io.Copy(tw, file)
 		return err
 	})
+
+	// Close in order: tar → gzip → file. Errors here mean a corrupt archive,
+	// so capture the first one even if Walk itself succeeded.
+	if err := tw.Close(); err != nil && walkErr == nil {
+		walkErr = fmt.Errorf("close tar writer: %w", err)
+	}
+	if err := gw.Close(); err != nil && walkErr == nil {
+		walkErr = fmt.Errorf("close gzip writer: %w", err)
+	}
+	if err := f.Close(); err != nil && walkErr == nil {
+		walkErr = fmt.Errorf("close archive file: %w", err)
+	}
+	return walkErr
 }
 
 func uploadFile(filePath, uploadURL string) error {

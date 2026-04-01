@@ -51,7 +51,7 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 		return fmt.Errorf("server limit of %d reached — destroy an existing server before creating a new one", vultrlayer.MaxServerCount)
 	}
 
-	label := fmt.Sprintf("corekeeper-%s", worldName)
+	label := fmt.Sprintf("%s-%s", games.CoreKeeperGameName, worldName)
 
 	s3Key := fmt.Sprintf("%s/%s.tar.gz", gameNameDir, worldName)
 	saveURL, err := m.GeneratePresignedGetURL(ctx, secrets.Secrets.R2BucketName, s3Key, saveURLExpiry)
@@ -64,7 +64,14 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 		return fmt.Errorf("cannot generate agent binary URL: %w", err)
 	}
 
-	webhookURL := secrets.Secrets.GuildWebhooks[interaction.GuildID]
+	webhookURL, ok := secrets.Secrets.GuildWebhooks[interaction.GuildID]
+	if !ok || webhookURL == "" {
+		return fmt.Errorf("no Discord webhook configured for this server — ask an admin to add one")
+	}
+
+	if existing, _ := m.vultrLayer.GetInstanceByLabel(ctx, label); existing != nil {
+		return fmt.Errorf("server `%s` is already running", label)
+	}
 	startupScript := fmt.Sprintf(template,
 		worldName,
 		agentBinaryURL,

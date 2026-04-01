@@ -30,12 +30,12 @@ func handler(ctx context.Context, req events.LambdaFunctionURLRequest) (events.L
 
 	vultrLayer, err := vultrlayer.New(ctx, secrets.Secrets.VultrAPIKey)
 	if err != nil {
-		log.Fatalf("Error creating vultr layer: %s", err)
+		return events.LambdaFunctionURLResponse{StatusCode: 500}, fmt.Errorf("error creating vultr layer: %w", err)
 	}
 
 	r2Presigner, err := newR2Presigner(ctx)
 	if err != nil {
-		log.Fatalf("Error creating R2 presigner: %s", err)
+		return events.LambdaFunctionURLResponse{StatusCode: 500}, fmt.Errorf("error creating R2 presigner: %w", err)
 	}
 
 	bot := gameServerManagerBot.New(vultrLayer, r2Presigner)

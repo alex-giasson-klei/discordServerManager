@@ -43,9 +43,16 @@ func (m *Manager) startServerNew(ctx context.Context, interaction *discordgo.Int
 		return fmt.Errorf("missing required option: world")
 	}
 
-	label := fmt.Sprintf("%s-%s", gameName, worldName)
+	label := fmt.Sprintf("%s-%s", games.CoreKeeperGameName, worldName)
 
-	webhookURL := secrets.Secrets.GuildWebhooks[interaction.GuildID]
+	webhookURL, ok := secrets.Secrets.GuildWebhooks[interaction.GuildID]
+	if !ok || webhookURL == "" {
+		return fmt.Errorf("no Discord webhook configured for this server — ask an admin to add one")
+	}
+
+	if existing, _ := m.vultrLayer.GetInstanceByLabel(ctx, label); existing != nil {
+		return fmt.Errorf("server `%s` is already running", label)
+	}
 
 	agentBinaryURL, err := m.GeneratePresignedGetURL(ctx, secrets.Secrets.R2BucketName, agentBinaryKey, saveURLExpiry)
 	if err != nil {
