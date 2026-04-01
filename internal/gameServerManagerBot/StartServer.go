@@ -96,20 +96,18 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 		webhookURL,
 	)
 
+	if err := m.CreateAutoShutdownSchedule(ctx, label, interaction.GuildID); err != nil {
+		return fmt.Errorf("cannot create auto-shutdown schedule (instance NOT created): %w", err)
+	}
+
 	if err := sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Provisioning instance `%s`...", label)); err != nil {
 		log.Printf("Error sending followup: %s", err)
 	}
 
 	instance, err := m.vultrLayer.CreateInstance(ctx, label, startupScript)
 	if err != nil {
+		m.DeleteAutoShutdownSchedule(ctx, label)
 		return fmt.Errorf("cannot create instance %q: %w", label, err)
-	}
-
-	if err := m.CreateAutoShutdownSchedule(ctx, label, interaction.GuildID); err != nil {
-		log.Printf("warning: failed to create auto-shutdown schedule for %q: %v", label, err)
-		if followupErr := sendFollowup(ctx, interaction.Interaction, "⚠️ Server created but auto-shutdown schedule could not be set — remember to stop it manually."); followupErr != nil {
-			log.Printf("error sending followup: %s", followupErr)
-		}
 	}
 
 	return sendFollowup(ctx, interaction.Interaction, fmt.Sprintf(
