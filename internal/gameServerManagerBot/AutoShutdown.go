@@ -121,7 +121,7 @@ func (m *Manager) HandleAutoShutdown(ctx context.Context, event AutoShutdownEven
 		notify(fmt.Sprintf("❌ Auto-shutdown failed: unrecognised game in label `%s`: %v", event.Label, err))
 		return fmt.Errorf("auto-shutdown unknown game: %w", err)
 	}
-	s3Key := fmt.Sprintf("%s/%s.tar.gz", meta.SaveDirectory, worldName)
+	s3Key := meta.SaveKey(worldName)
 	uploadURL, err := m.GeneratePresignedPutURL(ctx, secrets.Secrets.R2BucketName, s3Key, saveURLExpiry)
 	if err != nil {
 		notify(fmt.Sprintf("❌ Auto-shutdown failed: could not generate upload URL: %v", err))

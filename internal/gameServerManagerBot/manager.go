@@ -77,7 +77,7 @@ func (m *Manager) RotateSave(ctx context.Context, bucket, saveKey string) error 
 		return nil // first-ever save; nothing to back up
 	}
 
-	base := strings.TrimSuffix(saveKey, ".tar.gz")
+	base := saveKey[:strings.LastIndex(saveKey, "/")]
 	backupPrefix := base + "/backups/"
 	backupKey := backupPrefix + time.Now().UTC().Format("20060102T150405Z") + ".tar.gz"
 

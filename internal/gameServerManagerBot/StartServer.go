@@ -59,7 +59,7 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 
 	isNew := optionBool(interaction, "new")
 
-	s3Key := fmt.Sprintf("%s/%s.tar.gz", meta.SaveDirectory, worldName)
+	s3Key := meta.SaveKey(worldName)
 
 	instances, err := m.vultrLayer.ListInstances(ctx)
 	if err != nil {

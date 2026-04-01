@@ -15,6 +15,12 @@ type GameMeta struct {
 	JoinInfoPath  string // Path on the VPS where the game writes join info (e.g. a Game ID file)
 }
 
+// SaveKey returns the R2 object key for a world's current save.
+// Layout: {SaveDirectory}/{worldName}/{worldName}.tar.gz
+func (m GameMeta) SaveKey(worldName string) string {
+	return fmt.Sprintf("%s/%s/%s.tar.gz", m.SaveDirectory, worldName, worldName)
+}
+
 var (
 	gameMetas              = map[GameName]GameMeta{}
 	startupScriptTemplates = map[GameName]string{}

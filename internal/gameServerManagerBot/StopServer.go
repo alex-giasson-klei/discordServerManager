@@ -63,7 +63,7 @@ func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.Interac
 		return fmt.Errorf("instance %q has no IP yet — wait for it to finish provisioning", label)
 	}
 
-	s3Key := fmt.Sprintf("%s/%s.tar.gz", meta.SaveDirectory, worldName)
+	s3Key := meta.SaveKey(worldName)
 	uploadURL, err := m.GeneratePresignedPutURL(ctx, secrets.Secrets.R2BucketName, s3Key, saveURLExpiry)
 	if err != nil {
 		return fmt.Errorf("cannot generate save upload URL: %w", err)
