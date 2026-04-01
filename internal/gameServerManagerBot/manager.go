@@ -118,7 +118,8 @@ func (m *Manager) handleInteraction(ctx context.Context, interaction discordgo.I
 
 		result, err := handler(ctx, &discordgo.InteractionCreate{Interaction: &interaction}, m)
 		if err != nil {
-			return events.LambdaFunctionURLResponse{}, fmt.Errorf("handler error: %w", err)
+			log.Printf("handler error: %s", err)
+			return discordErrorResponse(err)
 		}
 
 		if result.DeferredWork != nil {
@@ -126,8 +127,10 @@ func (m *Manager) handleInteraction(ctx context.Context, interaction discordgo.I
 				log.Printf("Failed to acknowledge interaction: %s", ackErr)
 			}
 			if workErr := result.DeferredWork(); workErr != nil {
-				_ = sendFollowup(ctx, &interaction, workErr.Error())
 				log.Printf("Error in deferred work: %s", workErr)
+				if followupErr := sendFollowup(ctx, &interaction, fmt.Sprintf("❌ Error: %s", workErr.Error())); followupErr != nil {
+					log.Printf("Failed to send error followup: %s", followupErr)
+				}
 			}
 		}
 
@@ -155,6 +158,24 @@ func unknownCommandResponse() (events.LambdaFunctionURLResponse, error) {
 	body, err := json.Marshal(resp)
 	if err != nil {
 		return events.LambdaFunctionURLResponse{}, fmt.Errorf("can't marshal response to json: %w", err)
+	}
+	return events.LambdaFunctionURLResponse{
+		StatusCode: 200,
+		Body:       string(body),
+		Headers:    map[string]string{"Content-Type": "application/json"},
+	}, nil
+}
+
+func discordErrorResponse(err error) (events.LambdaFunctionURLResponse, error) {
+	resp := discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: fmt.Sprintf("❌ Error: %s", err.Error()),
+		},
+	}
+	body, marshalErr := json.Marshal(resp)
+	if marshalErr != nil {
+		return events.LambdaFunctionURLResponse{}, fmt.Errorf("can't marshal error response: %w", marshalErr)
 	}
 	return events.LambdaFunctionURLResponse{
 		StatusCode: 200,
