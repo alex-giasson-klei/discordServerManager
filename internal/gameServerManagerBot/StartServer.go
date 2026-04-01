@@ -1,12 +1,12 @@
 package gameServerManagerBot
 
 import (
-	vultrlayer "4dmiral/discordServerManager/internal/vultr"
+	"4dmiral/discordServerManager/internal/games"
 	"4dmiral/discordServerManager/internal/secrets"
+	vultrlayer "4dmiral/discordServerManager/internal/vultr"
 	"context"
 	"fmt"
 	"log"
-	"slices"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -74,9 +74,10 @@ func handlerStartServer(ctx context.Context, interaction *discordgo.InteractionC
 }
 
 func (m *Manager) startServer(ctx context.Context, interaction *discordgo.InteractionCreate) error {
-	gameName := CoreKeeperGameName
-	if !slices.Contains(SupportedGames, gameName) {
-		return fmt.Errorf("unsupported game %q", gameName)
+	gameName := games.CoreKeeperGameName
+	template, err := games.StartupScriptTemplate(gameName)
+	if err != nil {
+		return err
 	}
 
 	worldName := optionString(interaction, "world")
@@ -106,7 +107,7 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 	}
 
 	webhookURL := secrets.Secrets.GuildWebhooks[interaction.GuildID]
-	startupScript := fmt.Sprintf(startupScriptTemplate,
+	startupScript := fmt.Sprintf(template,
 		worldName,
 		agentBinaryURL,
 		secrets.Secrets.GameServerAgentSecret,

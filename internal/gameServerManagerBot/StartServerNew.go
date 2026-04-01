@@ -1,12 +1,12 @@
 package gameServerManagerBot
 
 import (
+	"4dmiral/discordServerManager/internal/games"
 	"4dmiral/discordServerManager/internal/secrets"
 	vultrlayer "4dmiral/discordServerManager/internal/vultr"
 	"context"
 	"fmt"
 	"log"
-	"slices"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -32,9 +32,10 @@ func (m *Manager) startServerNew(ctx context.Context, interaction *discordgo.Int
 		return fmt.Errorf("server limit of %d reached — destroy an existing server before creating a new one", vultrlayer.MaxServerCount)
 	}
 
-	gameName := CoreKeeperGameName
-	if !slices.Contains(SupportedGames, gameName) {
-		return fmt.Errorf("unsupported game %q", gameName)
+	gameName := games.CoreKeeperGameName
+	template, err := games.StartupScriptTemplate(gameName)
+	if err != nil {
+		return err
 	}
 
 	worldName := optionString(interaction, "world")
@@ -51,7 +52,7 @@ func (m *Manager) startServerNew(ctx context.Context, interaction *discordgo.Int
 		return fmt.Errorf("cannot generate agent binary URL: %w", err)
 	}
 
-	startupScript := fmt.Sprintf(startupScriptTemplate,
+	startupScript := fmt.Sprintf(template,
 		worldName,
 		agentBinaryURL,
 		secrets.Secrets.GameServerAgentSecret,
