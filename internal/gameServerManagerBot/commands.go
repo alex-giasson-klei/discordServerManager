@@ -7,11 +7,10 @@ import (
 )
 
 const (
-	CommandStartServer   = "startserver"
-	CommandStopServer    = "stopserver"
-	CommandStatus        = "status"
-	CommandTest          = "test"
-	CommandStartNewWorld = "startserver-new"
+	CommandStartServer = "startserver"
+	CommandStopServer  = "stopserver"
+	CommandStatus      = "status"
+	CommandTest        = "test"
 )
 
 var Commands []*discordgo.ApplicationCommand
@@ -36,27 +35,20 @@ func init() {
 	Commands = []*discordgo.ApplicationCommand{
 		{
 			Name:        CommandStartServer,
-			Description: "Run a saved game server",
+			Description: "Start a game server (loads existing save, or use new:True for a fresh world)",
 			Options: []*discordgo.ApplicationCommandOption{
 				gameOption,
 				{
 					Type:        discordgo.ApplicationCommandOptionString,
 					Name:        "world",
-					Description: "World name to load",
+					Description: "World name",
 					Required:    true,
 				},
-			},
-		},
-		{
-			Name:        CommandStartNewWorld,
-			Description: "Start a new game world",
-			Options: []*discordgo.ApplicationCommandOption{
-				gameOption,
 				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "world",
-					Description: "Name for the new world (e.g. myAwesomeWorld)",
-					Required:    true,
+					Type:        discordgo.ApplicationCommandOptionBoolean,
+					Name:        "new",
+					Description: "Create a fresh world instead of loading a save (default: false)",
+					Required:    false,
 				},
 			},
 		},

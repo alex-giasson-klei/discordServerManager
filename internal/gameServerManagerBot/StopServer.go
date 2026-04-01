@@ -60,6 +60,10 @@ func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.Interac
 		return fmt.Errorf("cannot generate save upload URL: %w", err)
 	}
 
+	if err := m.RotateSave(ctx, secrets.Secrets.R2BucketName, s3Key); err != nil {
+		log.Printf("warning: save rotation failed for %q (proceeding with shutdown): %v", label, err)
+	}
+
 	if err := sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Saving world `%s`...", worldName)); err != nil {
 		log.Printf("Error sending followup: %s", err)
 	}

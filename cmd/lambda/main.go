@@ -36,9 +36,9 @@ func handler(ctx context.Context, rawEvent json.RawMessage) (interface{}, error)
 		return nil, fmt.Errorf("create vultr layer: %w", err)
 	}
 
-	r2Presigner, err := newR2Presigner(ctx)
+	r2Client, err := newR2Client(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("create R2 presigner: %w", err)
+		return nil, fmt.Errorf("create R2 client: %w", err)
 	}
 
 	schedulerClient, err := newSchedulerClient(ctx)
@@ -46,7 +46,7 @@ func handler(ctx context.Context, rawEvent json.RawMessage) (interface{}, error)
 		return nil, fmt.Errorf("create scheduler client: %w", err)
 	}
 
-	bot := gameServerManagerBot.New(vultrLayer, r2Presigner, schedulerClient)
+	bot := gameServerManagerBot.New(vultrLayer, r2Client, s3.NewPresignClient(r2Client), schedulerClient)
 
 	// Function URL events always have a "requestContext" field.
 	var peek struct {
@@ -70,9 +70,9 @@ func handler(ctx context.Context, rawEvent json.RawMessage) (interface{}, error)
 	return nil, bot.HandleAutoShutdown(ctx, event)
 }
 
-// newR2Presigner builds a pre-sign client pointed at Cloudflare R2.
+// newR2Client builds an S3 client pointed at Cloudflare R2.
 // R2 is S3-compatible so the AWS SDK is used with a custom endpoint.
-func newR2Presigner(ctx context.Context) (*s3.PresignClient, error) {
+func newR2Client(ctx context.Context) (*s3.Client, error) {
 	r2Endpoint := fmt.Sprintf("https://%s.r2.cloudflarestorage.com", secrets.Secrets.R2AccountID)
 
 	cfg, err := config.LoadDefaultConfig(ctx,
@@ -87,11 +87,10 @@ func newR2Presigner(ctx context.Context) (*s3.PresignClient, error) {
 		return nil, fmt.Errorf("load R2 config: %w", err)
 	}
 
-	r2Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+	return s3.NewFromConfig(cfg, func(o *s3.Options) {
 		o.BaseEndpoint = &r2Endpoint
 		o.UsePathStyle = true
-	})
-	return s3.NewPresignClient(r2Client), nil
+	}), nil
 }
 
 // newSchedulerClient builds an EventBridge Scheduler client using the

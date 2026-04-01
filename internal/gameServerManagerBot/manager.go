@@ -7,31 +7,119 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/scheduler"
 	"github.com/bwmarrin/discordgo"
 )
 
 type Manager struct {
 	vultrLayer      *vultrlayer.VultrLayer
+	s3Client        *s3.Client
 	s3Presigner     *s3.PresignClient
 	schedulerClient *scheduler.Client
 }
 
-func New(vultrLayer *vultrlayer.VultrLayer, s3Presigner *s3.PresignClient, schedulerClient *scheduler.Client) *Manager {
+func New(vultrLayer *vultrlayer.VultrLayer, s3Client *s3.Client, s3Presigner *s3.PresignClient, schedulerClient *scheduler.Client) *Manager {
 	return &Manager{
 		vultrLayer:      vultrLayer,
+		s3Client:        s3Client,
 		s3Presigner:     s3Presigner,
 		schedulerClient: schedulerClient,
 	}
+}
+
+// SaveExists reports whether an object exists in R2 without downloading it.
+func (m *Manager) SaveExists(ctx context.Context, bucket, key string) (bool, error) {
+	_, err := m.s3Client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var notFound *s3types.NotFound
+		if errors.As(err, &notFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("check save existence: %w", err)
+	}
+	return true, nil
+}
+
+const maxSaveVersions = 3
+
+// RotateSave copies the current save to a timestamped backup key, then prunes
+// old backups so that only maxSaveVersions are kept. Call this before each
+// shutdown so the incoming upload overwrites the latest without losing history.
+//
+// Backup layout:
+//
+//	{saveKey}                            ← current save (unchanged)
+//	{base}/backups/20060102T150405Z.tar.gz  ← timestamped copies
+//
+// If no current save exists (first save), rotation is a no-op.
+// A rotation failure is logged but never blocks the actual shutdown.
+func (m *Manager) RotateSave(ctx context.Context, bucket, saveKey string) error {
+	exists, err := m.SaveExists(ctx, bucket, saveKey)
+	if err != nil {
+		return fmt.Errorf("rotate save: check existence: %w", err)
+	}
+	if !exists {
+		return nil // first-ever save; nothing to back up
+	}
+
+	base := strings.TrimSuffix(saveKey, ".tar.gz")
+	backupPrefix := base + "/backups/"
+	backupKey := backupPrefix + time.Now().UTC().Format("20060102T150405Z") + ".tar.gz"
+
+	_, err = m.s3Client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:     aws.String(bucket),
+		CopySource: aws.String(bucket + "/" + saveKey),
+		Key:        aws.String(backupKey),
+	})
+	if err != nil {
+		return fmt.Errorf("rotate save: copy to backup %q: %w", backupKey, err)
+	}
+
+	list, err := m.s3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(backupPrefix),
+	})
+	if err != nil {
+		return fmt.Errorf("rotate save: list backups: %w", err)
+	}
+
+	if len(list.Contents) <= maxSaveVersions {
+		return nil
+	}
+
+	// Keys are ISO timestamps; lexicographic sort = chronological order.
+	sort.Slice(list.Contents, func(i, j int) bool {
+		return aws.ToString(list.Contents[i].Key) < aws.ToString(list.Contents[j].Key)
+	})
+
+	toDelete := list.Contents[:len(list.Contents)-maxSaveVersions]
+	ids := make([]s3types.ObjectIdentifier, len(toDelete))
+	for i, obj := range toDelete {
+		ids[i] = s3types.ObjectIdentifier{Key: obj.Key}
+	}
+	_, err = m.s3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+		Bucket: aws.String(bucket),
+		Delete: &s3types.Delete{Objects: ids},
+	})
+	if err != nil {
+		return fmt.Errorf("rotate save: prune old backups: %w", err)
+	}
+	return nil
 }
 
 // GeneratePresignedGetURL returns a pre-signed S3 GET URL valid for the given duration.

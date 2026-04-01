@@ -36,7 +36,6 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 	if err != nil {
 		return err
 	}
-
 	template, err := games.StartupScriptTemplate(gameName)
 	if err != nil {
 		return err
@@ -46,6 +45,8 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 	if worldName == "" {
 		return fmt.Errorf("missing required option: world")
 	}
+
+	isNew := optionBool(interaction, "new")
 
 	instances, err := m.vultrLayer.ListInstances(ctx)
 	if err != nil {
@@ -57,10 +58,24 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 
 	label := fmt.Sprintf("%s-%s", gameName, worldName)
 
-	s3Key := fmt.Sprintf("%s/%s.tar.gz", meta.SaveDirectory, worldName)
-	saveURL, err := m.GeneratePresignedGetURL(ctx, secrets.Secrets.R2BucketName, s3Key, saveURLExpiry)
-	if err != nil {
-		return fmt.Errorf("cannot generate save download URL: %w", err)
+	if existing, _ := m.vultrLayer.GetInstanceByLabel(ctx, label); existing != nil {
+		return fmt.Errorf("server `%s` is already running", label)
+	}
+
+	var saveURL string
+	if !isNew {
+		s3Key := fmt.Sprintf("%s/%s.tar.gz", meta.SaveDirectory, worldName)
+		exists, err := m.SaveExists(ctx, secrets.Secrets.R2BucketName, s3Key)
+		if err != nil {
+			return fmt.Errorf("cannot check for existing save: %w", err)
+		}
+		if !exists {
+			return fmt.Errorf("no save found for `%s/%s` — use `/startserver new:True` to create a fresh world", gameName, worldName)
+		}
+		saveURL, err = m.GeneratePresignedGetURL(ctx, secrets.Secrets.R2BucketName, s3Key, saveURLExpiry)
+		if err != nil {
+			return fmt.Errorf("cannot generate save download URL: %w", err)
+		}
 	}
 
 	agentBinaryURL, err := m.GeneratePresignedGetURL(ctx, secrets.Secrets.R2BucketName, agentBinaryKey, saveURLExpiry)
@@ -73,9 +88,6 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 		return fmt.Errorf("no Discord webhook configured for this server — ask an admin to add one")
 	}
 
-	if existing, _ := m.vultrLayer.GetInstanceByLabel(ctx, label); existing != nil {
-		return fmt.Errorf("server `%s` is already running", label)
-	}
 	startupScript := fmt.Sprintf(template,
 		worldName,
 		agentBinaryURL,
@@ -114,4 +126,14 @@ func optionString(interaction *discordgo.InteractionCreate, name string) string 
 		}
 	}
 	return ""
+}
+
+// optionBool returns the bool value of a named slash-command option, or false.
+func optionBool(interaction *discordgo.InteractionCreate, name string) bool {
+	for _, opt := range interaction.ApplicationCommandData().Options {
+		if opt.Name == name {
+			return opt.BoolValue()
+		}
+	}
+	return false
 }

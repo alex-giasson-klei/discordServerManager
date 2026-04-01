@@ -15,11 +15,18 @@ func init() {
 var coreKeeperStartupScriptTemplate = `#!/bin/bash
 set -e
 
+# No unattended upgrades
+systemctl stop unattended-upgrades
+apt remove unattended-upgrades -y
+
 apt-get update -y
 apt-get install -y docker.io curl
 
 systemctl enable docker
 systemctl start docker
+
+# Open agent port before starting the agent
+iptables -I INPUT -p tcp --dport 8080 -j ACCEPT
 
 mkdir -p /tmp/core-keeper-data
 mkdir -p /tmp/core-keeper-dedicated
