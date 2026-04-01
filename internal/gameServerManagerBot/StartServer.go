@@ -106,7 +106,9 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 
 	instance, err := m.vultrLayer.CreateInstance(ctx, label, startupScript)
 	if err != nil {
-		m.DeleteAutoShutdownSchedule(ctx, label)
+		if schedErr := m.DeleteAutoShutdownSchedule(ctx, label); schedErr != nil {
+			log.Printf("warning: failed to clean up auto-shutdown schedule for %q after instance creation failure: %v", label, schedErr)
+		}
 		return fmt.Errorf("cannot create instance %q: %w", label, err)
 	}
 

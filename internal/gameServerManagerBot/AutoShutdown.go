@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -72,17 +73,22 @@ func (m *Manager) CreateAutoShutdownSchedule(ctx context.Context, label, guildID
 }
 
 // DeleteAutoShutdownSchedule removes the pending auto-shutdown schedule for a
-// server. Safe to call even if the schedule has already fired and been deleted.
-func (m *Manager) DeleteAutoShutdownSchedule(ctx context.Context, label string) {
+// server. Returns an error if the delete fails for any reason other than the
+// schedule already being gone (fired and auto-deleted).
+func (m *Manager) DeleteAutoShutdownSchedule(ctx context.Context, label string) error {
 	scheduleName := autoShutdownScheduleName(label)
 	_, err := m.schedulerClient.DeleteSchedule(ctx, &scheduler.DeleteScheduleInput{
 		Name:      aws.String(scheduleName),
 		GroupName: aws.String(autoShutdownGroupName),
 	})
 	if err != nil {
-		// Schedule may have already fired and auto-deleted; just log.
-		log.Printf("note: could not delete auto-shutdown schedule %q (may already be gone): %v", scheduleName, err)
+		if _, ok := errors.AsType[*schedulertypes.ResourceNotFoundException](err); ok {
+			// Already fired and auto-deleted — not an error.
+			return nil
+		}
+		return fmt.Errorf("delete auto-shutdown schedule %q: %w", scheduleName, err)
 	}
+	return nil
 }
 
 // HandleAutoShutdown runs the full save+destroy flow triggered by EventBridge.

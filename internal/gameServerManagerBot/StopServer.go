@@ -84,7 +84,9 @@ func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.Interac
 		return fmt.Errorf("cannot destroy instance %q: %w", label, err)
 	}
 
-	m.DeleteAutoShutdownSchedule(ctx, label)
+	if err := m.DeleteAutoShutdownSchedule(ctx, label); err != nil {
+		log.Printf("warning: failed to delete auto-shutdown schedule for %q: %v", label, err)
+	}
 
 	return sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Server `%s` saved and destroyed.", label))
 }
