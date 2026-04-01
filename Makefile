@@ -18,7 +18,7 @@ updateAWS:
     --zip-file fileb://function.zip \
     --publish \
     --profile ajgia
-deploy: buildLambda registerCommands package updateAWS
+deploy: buildLambda registerCommands package updateAWS uploadGameserverAgent
 invoke:
 	aws lambda invoke --function-name discordGameServerBot \
 	--cli-binary-format raw-in-base64-out \
