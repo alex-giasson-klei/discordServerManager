@@ -126,6 +126,13 @@ func createTarGz(srcDir, destPath string) error {
 		}
 
 		hdr, err := tar.FileInfoHeader(info, "")
+		if info.Mode()&os.ModeSymlink != 0 {
+			linkTarget, readErr := os.Readlink(path)
+			if readErr != nil {
+				return fmt.Errorf("read symlink %s: %w", path, readErr)
+			}
+			hdr, err = tar.FileInfoHeader(info, linkTarget)
+		}
 		if err != nil {
 			return err
 		}
@@ -134,7 +141,7 @@ func createTarGz(srcDir, destPath string) error {
 		if err := tw.WriteHeader(hdr); err != nil {
 			return err
 		}
-		if info.IsDir() {
+		if info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 			return nil
 		}
 
