@@ -2,7 +2,15 @@ package games
 
 const CoreKeeperGameName GameName = "CoreKeeper"
 
-// startupScriptTemplate is the cloud-init user-data script for each new VPS.
+func init() {
+	Register(CoreKeeperGameName, GameMeta{
+		SaveDirectory: "CoreKeeper",
+		ContainerName: "core-keeper-dedicated",
+		SaveDir:       "/tmp/core-keeper-data",
+	}, coreKeeperStartupScriptTemplate)
+}
+
+// coreKeeperStartupScriptTemplate is the cloud-init user-data script for Core Keeper VPS instances.
 // Substitution order: WorldName, AgentBinaryURL, AgentSecret, SaveURL, DiscordWebhookURL
 var coreKeeperStartupScriptTemplate = `#!/bin/bash
 set -e
@@ -21,7 +29,7 @@ WORLD_NAME="%s"
 # Download and start the gameserver management agent
 curl -fSL "%s" -o /usr/local/bin/gameserver-agent
 chmod +x /usr/local/bin/gameserver-agent
-AGENT_SECRET="%s" WORLD_NAME="$WORLD_NAME" nohup /usr/local/bin/gameserver-agent > /var/log/gameserver-agent.log 2>&1 &
+AGENT_SECRET="%s" WORLD_NAME="$WORLD_NAME" CONTAINER_NAME="core-keeper-dedicated" SAVE_DIR="/tmp/core-keeper-data" nohup /usr/local/bin/gameserver-agent > /var/log/gameserver-agent.log 2>&1 &
 
 SAVE_URL="%s"
 if [ -n "$SAVE_URL" ]; then

@@ -1,6 +1,7 @@
 package gameServerManagerBot
 
 import (
+	"4dmiral/discordServerManager/internal/games"
 	"4dmiral/discordServerManager/internal/secrets"
 	"bytes"
 	"context"
@@ -48,7 +49,12 @@ func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.Interac
 	}
 
 	worldName := extractWorldName(label)
-	s3Key := fmt.Sprintf("%s/%s.tar.gz", gameNameDir, worldName)
+	gameName := games.GameName(extractGameName(label))
+	meta, err := games.Meta(gameName)
+	if err != nil {
+		return fmt.Errorf("unrecognised game in label %q: %w", label, err)
+	}
+	s3Key := fmt.Sprintf("%s/%s.tar.gz", meta.SaveDirectory, worldName)
 	uploadURL, err := m.GeneratePresignedPutURL(ctx, secrets.Secrets.R2BucketName, s3Key, saveURLExpiry)
 	if err != nil {
 		return fmt.Errorf("cannot generate save upload URL: %w", err)
@@ -69,6 +75,8 @@ func (m *Manager) stopServer(ctx context.Context, interaction *discordgo.Interac
 	if err := m.vultrLayer.DestroyInstance(ctx, instance.ID); err != nil {
 		return fmt.Errorf("cannot destroy instance %q: %w", label, err)
 	}
+
+	m.DeleteAutoShutdownSchedule(ctx, label)
 
 	return sendFollowup(ctx, interaction.Interaction, fmt.Sprintf("Server `%s` saved and destroyed.", label))
 }
@@ -103,8 +111,17 @@ func (m *Manager) callAgentShutdown(ctx context.Context, ip, uploadURL string) e
 	return nil
 }
 
+// extractGameName returns the game name portion of a VPS label.
+// e.g. "CoreKeeper-myworld" → "CoreKeeper"
+func extractGameName(label string) string {
+	if idx := strings.Index(label, "-"); idx != -1 {
+		return label[:idx]
+	}
+	return label
+}
+
 // extractWorldName strips the leading game prefix from a VPS label.
-// e.g. "corekeeper-myworld" → "myworld", "CoreKeeper-myworld" → "myworld"
+// e.g. "CoreKeeper-myworld" → "myworld", "CoreKeeper-my-world" → "my-world"
 func extractWorldName(label string) string {
 	if idx := strings.Index(label, "-"); idx != -1 {
 		return label[idx+1:]

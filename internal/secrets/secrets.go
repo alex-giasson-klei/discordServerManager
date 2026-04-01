@@ -29,6 +29,8 @@ type LambdaSecrets struct {
 	R2AccessKeyID         string
 	R2SecretAccessKey     string
 	R2BucketName          string
+	LambdaFunctionARN     string
+	SchedulerRoleARN      string
 }
 
 func GetSecretsWithSDK(ctx context.Context, optFns ...func(*config.LoadOptions) error) error {

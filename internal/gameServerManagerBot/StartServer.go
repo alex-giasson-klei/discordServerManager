@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	gameNameDir    = "CoreKeeper"
 	saveURLExpiry  = 24 * time.Hour
 	agentBinaryKey = "bin/gameserver-agent"
 	agentPort      = 8080
@@ -32,7 +31,12 @@ func handlerStartServer(ctx context.Context, interaction *discordgo.InteractionC
 }
 
 func (m *Manager) startServer(ctx context.Context, interaction *discordgo.InteractionCreate) error {
-	gameName := games.CoreKeeperGameName
+	gameName := games.GameName(optionString(interaction, "game"))
+	meta, err := games.Meta(gameName)
+	if err != nil {
+		return err
+	}
+
 	template, err := games.StartupScriptTemplate(gameName)
 	if err != nil {
 		return err
@@ -51,9 +55,9 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 		return fmt.Errorf("server limit of %d reached — destroy an existing server before creating a new one", vultrlayer.MaxServerCount)
 	}
 
-	label := fmt.Sprintf("%s-%s", games.CoreKeeperGameName, worldName)
+	label := fmt.Sprintf("%s-%s", gameName, worldName)
 
-	s3Key := fmt.Sprintf("%s/%s.tar.gz", gameNameDir, worldName)
+	s3Key := fmt.Sprintf("%s/%s.tar.gz", meta.SaveDirectory, worldName)
 	saveURL, err := m.GeneratePresignedGetURL(ctx, secrets.Secrets.R2BucketName, s3Key, saveURLExpiry)
 	if err != nil {
 		return fmt.Errorf("cannot generate save download URL: %w", err)
@@ -89,8 +93,15 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 		return fmt.Errorf("cannot create instance %q: %w", label, err)
 	}
 
+	if err := m.CreateAutoShutdownSchedule(ctx, label, interaction.GuildID); err != nil {
+		log.Printf("warning: failed to create auto-shutdown schedule for %q: %v", label, err)
+		if followupErr := sendFollowup(ctx, interaction.Interaction, "⚠️ Server created but auto-shutdown schedule could not be set — remember to stop it manually."); followupErr != nil {
+			log.Printf("error sending followup: %s", followupErr)
+		}
+	}
+
 	return sendFollowup(ctx, interaction.Interaction, fmt.Sprintf(
-		"Server `%s` created (ID: `%s`). It will be ready in a few minutes once the startup script completes.",
+		"Server `%s` created (ID: `%s`). It will be ready in a few minutes. Auto-shutdown in 5 hours.",
 		instance.Label, instance.ID,
 	))
 }

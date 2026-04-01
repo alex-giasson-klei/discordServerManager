@@ -32,7 +32,7 @@ func (m *Manager) startServerNew(ctx context.Context, interaction *discordgo.Int
 		return fmt.Errorf("server limit of %d reached — destroy an existing server before creating a new one", vultrlayer.MaxServerCount)
 	}
 
-	gameName := games.CoreKeeperGameName
+	gameName := games.GameName(optionString(interaction, "game"))
 	template, err := games.StartupScriptTemplate(gameName)
 	if err != nil {
 		return err
@@ -43,7 +43,7 @@ func (m *Manager) startServerNew(ctx context.Context, interaction *discordgo.Int
 		return fmt.Errorf("missing required option: world")
 	}
 
-	label := fmt.Sprintf("%s-%s", games.CoreKeeperGameName, worldName)
+	label := fmt.Sprintf("%s-%s", gameName, worldName)
 
 	webhookURL, ok := secrets.Secrets.GuildWebhooks[interaction.GuildID]
 	if !ok || webhookURL == "" {
@@ -76,8 +76,15 @@ func (m *Manager) startServerNew(ctx context.Context, interaction *discordgo.Int
 		return fmt.Errorf("cannot create instance %q: %w", label, err)
 	}
 
+	if err := m.CreateAutoShutdownSchedule(ctx, label, interaction.GuildID); err != nil {
+		log.Printf("warning: failed to create auto-shutdown schedule for %q: %v", label, err)
+		if followupErr := sendFollowup(ctx, interaction.Interaction, "⚠️ Server created but auto-shutdown schedule could not be set — remember to stop it manually."); followupErr != nil {
+			log.Printf("error sending followup: %s", followupErr)
+		}
+	}
+
 	return sendFollowup(ctx, interaction.Interaction, fmt.Sprintf(
-		"Server `%s` created (ID: `%s`). It will be ready in a few minutes once the startup script completes.",
+		"Server `%s` created (ID: `%s`). It will be ready in a few minutes. Auto-shutdown in 5 hours.",
 		instance.Label, instance.ID,
 	))
 }

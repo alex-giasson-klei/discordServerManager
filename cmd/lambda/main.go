@@ -5,6 +5,7 @@ import (
 	"4dmiral/discordServerManager/internal/secrets"
 	vultrlayer "4dmiral/discordServerManager/internal/vultr"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/scheduler"
 )
 
 func init() {
@@ -25,21 +27,47 @@ func main() {
 	lambda.Start(handler)
 }
 
-func handler(ctx context.Context, req events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
-	log.Printf("%+v", req)
-
+// handler accepts both Lambda Function URL requests (from Discord) and
+// EventBridge Scheduler payloads (for auto-shutdown). The two are distinguished
+// by the presence of the "requestContext" field.
+func handler(ctx context.Context, rawEvent json.RawMessage) (interface{}, error) {
 	vultrLayer, err := vultrlayer.New(ctx, secrets.Secrets.VultrAPIKey)
 	if err != nil {
-		return events.LambdaFunctionURLResponse{StatusCode: 500}, fmt.Errorf("error creating vultr layer: %w", err)
+		return nil, fmt.Errorf("create vultr layer: %w", err)
 	}
 
 	r2Presigner, err := newR2Presigner(ctx)
 	if err != nil {
-		return events.LambdaFunctionURLResponse{StatusCode: 500}, fmt.Errorf("error creating R2 presigner: %w", err)
+		return nil, fmt.Errorf("create R2 presigner: %w", err)
 	}
 
-	bot := gameServerManagerBot.New(vultrLayer, r2Presigner)
-	return bot.HandleRequest(ctx, &req)
+	schedulerClient, err := newSchedulerClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("create scheduler client: %w", err)
+	}
+
+	bot := gameServerManagerBot.New(vultrLayer, r2Presigner, schedulerClient)
+
+	// Function URL events always have a "requestContext" field.
+	var peek struct {
+		RequestContext *json.RawMessage `json:"requestContext"`
+	}
+	json.Unmarshal(rawEvent, &peek)
+
+	if peek.RequestContext != nil {
+		var req events.LambdaFunctionURLRequest
+		if err := json.Unmarshal(rawEvent, &req); err != nil {
+			return nil, fmt.Errorf("unmarshal function URL event: %w", err)
+		}
+		return bot.HandleRequest(ctx, &req)
+	}
+
+	// Otherwise treat it as an EventBridge Scheduler auto-shutdown event.
+	var event gameServerManagerBot.AutoShutdownEvent
+	if err := json.Unmarshal(rawEvent, &event); err != nil {
+		return nil, fmt.Errorf("unmarshal auto-shutdown event: %w", err)
+	}
+	return nil, bot.HandleAutoShutdown(ctx, event)
 }
 
 // newR2Presigner builds a pre-sign client pointed at Cloudflare R2.
@@ -64,4 +92,14 @@ func newR2Presigner(ctx context.Context) (*s3.PresignClient, error) {
 		o.UsePathStyle = true
 	})
 	return s3.NewPresignClient(r2Client), nil
+}
+
+// newSchedulerClient builds an EventBridge Scheduler client using the
+// Lambda's ambient IAM role credentials.
+func newSchedulerClient(ctx context.Context) (*scheduler.Client, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load AWS config: %w", err)
+	}
+	return scheduler.NewFromConfig(cfg), nil
 }

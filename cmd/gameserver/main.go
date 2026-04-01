@@ -18,16 +18,22 @@ import (
 )
 
 const (
-	listenPort    = 8080
-	saveDir       = "/tmp/core-keeper-data"
-	containerName = "core-keeper-dedicated"
-	saveTarPath   = "/tmp/save-upload.tar.gz"
+	listenPort  = 8080
+	saveTarPath = "/tmp/save-upload.tar.gz"
+)
+
+var (
+	containerName string
+	saveDir       string
 )
 
 func main() {
 	secret := os.Getenv("AGENT_SECRET")
-	if secret == "" {
-		log.Fatal("AGENT_SECRET env var not set")
+	containerName = os.Getenv("CONTAINER_NAME")
+	saveDir = os.Getenv("SAVE_DIR")
+
+	if secret == "" || containerName == "" || saveDir == "" {
+		log.Fatal("AGENT_SECRET, CONTAINER_NAME, and SAVE_DIR env vars must all be set")
 	}
 
 	mux := http.NewServeMux()

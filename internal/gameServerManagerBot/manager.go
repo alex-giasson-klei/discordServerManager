@@ -16,18 +16,21 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/scheduler"
 	"github.com/bwmarrin/discordgo"
 )
 
 type Manager struct {
-	vultrLayer  *vultrlayer.VultrLayer
-	s3Presigner *s3.PresignClient
+	vultrLayer      *vultrlayer.VultrLayer
+	s3Presigner     *s3.PresignClient
+	schedulerClient *scheduler.Client
 }
 
-func New(vultrLayer *vultrlayer.VultrLayer, s3Presigner *s3.PresignClient) *Manager {
+func New(vultrLayer *vultrlayer.VultrLayer, s3Presigner *s3.PresignClient, schedulerClient *scheduler.Client) *Manager {
 	return &Manager{
-		vultrLayer:  vultrLayer,
-		s3Presigner: s3Presigner,
+		vultrLayer:      vultrLayer,
+		s3Presigner:     s3Presigner,
+		schedulerClient: schedulerClient,
 	}
 }
 
