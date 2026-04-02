@@ -114,14 +114,18 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 	)
 
 	shutdownDuration := AutoShutdownDefaultDuration
-	if minutes := optionInt(interaction, "autoshutdown"); minutes > 0 {
-		shutdownDuration = time.Duration(minutes) * time.Minute
-		if shutdownDuration < autoShutdownMinDuration {
-			shutdownDuration = autoShutdownMinDuration
+	if timerStr := optionString(interaction, "auto_shutdown_timer"); timerStr != "" {
+		parsed, err := time.ParseDuration(timerStr)
+		if err != nil {
+			return fmt.Errorf("invalid auto_shutdown_timer %q — use a format like 2h, 30m, or 1h30m", timerStr)
 		}
-		if shutdownDuration > AutoShutdownMaxDuration {
-			shutdownDuration = AutoShutdownMaxDuration
+		if parsed < autoShutdownMinDuration {
+			return fmt.Errorf("auto_shutdown_timer must be at least %s", formatDuration(autoShutdownMinDuration))
 		}
+		if parsed > AutoShutdownMaxDuration {
+			return fmt.Errorf("auto_shutdown_timer must be at most %s", formatDuration(AutoShutdownMaxDuration))
+		}
+		shutdownDuration = parsed
 	}
 
 	if err := m.CreateAutoShutdownSchedule(ctx, label, interaction.GuildID, shutdownDuration); err != nil {

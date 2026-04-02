@@ -20,6 +20,10 @@ updateAWS:
     --no-cli-pager \
     --query '{FunctionName: FunctionName, Version: Version, LastUpdateStatus: LastUpdateStatus}' \
     --profile ajgia
+	aws lambda put-function-event-invoke-config --function-name discordGameServerBot \
+    --maximum-retry-attempts 0 \
+    --no-cli-pager \
+    --profile ajgia
 deploy: buildLambda registerCommands package updateAWS uploadGameserverAgent
 invoke:
 	aws lambda invoke --function-name discordGameServerBot \
