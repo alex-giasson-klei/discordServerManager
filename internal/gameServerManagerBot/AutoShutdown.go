@@ -30,7 +30,7 @@ type AutoShutdownEvent struct {
 	ScheduleName string `json:"schedule_name"`
 }
 
-// formatDuration formats a duration as "Xh Ym", omitting minutes if zero.
+// formatDuration formats a duration as "Xh Ym"
 func formatDuration(d time.Duration) string {
 	h := int(d.Hours())
 	m := int(d.Minutes()) % 60
