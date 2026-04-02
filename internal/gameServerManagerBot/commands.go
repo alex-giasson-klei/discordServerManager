@@ -75,9 +75,5 @@ func init() {
 			Name:        CommandList,
 			Description: "List running game servers and saved worlds",
 		},
-		{
-			Name:        CommandTest,
-			Description: "Test Command",
-		},
 	}
 }
