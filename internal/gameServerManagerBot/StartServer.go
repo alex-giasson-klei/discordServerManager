@@ -127,7 +127,7 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 
 	return sendFollowup(ctx, interaction.Interaction, fmt.Sprintf(
 		"`%s` world `%s` started. The Join Information will be posted in a few minutes when the server is ready! Auto-shutdown is in %s. To stop the server manually, use `/stopserver`",
-		gameName, worldName, AutoShutdownDuration.String(),
+		gameName, worldName, formatDuration(AutoShutdownDuration),
 	))
 }
 
