@@ -1,6 +1,7 @@
 package gameServerManagerBot
 
 import (
+	"4dmiral/discordServerManager/internal/games"
 	"4dmiral/discordServerManager/internal/secrets"
 	"context"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	govultr "github.com/vultr/govultr/v3"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -52,39 +54,87 @@ func fetchJoinInfo(ip string) agentInfoResponse {
 }
 
 func (m *Manager) listServers(ctx context.Context, interaction *discordgo.InteractionCreate) error {
-	instances, err := m.vultrLayer.ListInstances(ctx)
-	if err != nil {
-		return fmt.Errorf("cannot list instances: %w", err)
+	// Fetch running instances and saved worlds concurrently.
+	type instancesResult struct {
+		instances []govultr.Instance
+		err       error
+	}
+	type worldsResult struct {
+		worlds map[games.GameName][]string
+		err    error
 	}
 
-	if len(instances) == 0 {
-		return sendFollowup(ctx, interaction.Interaction, "No servers currently running.")
+	instCh := make(chan instancesResult, 1)
+	worldsCh := make(chan worldsResult, 1)
+
+	go func() {
+		inst, err := m.vultrLayer.ListInstances(ctx)
+		instCh <- instancesResult{inst, err}
+	}()
+	go func() {
+		w, err := m.ListSavedWorlds(ctx, secrets.Secrets.R2BucketName)
+		worldsCh <- worldsResult{w, err}
+	}()
+
+	ir := <-instCh
+	if ir.err != nil {
+		return fmt.Errorf("cannot list instances: %w", ir.err)
+	}
+	wr := <-worldsCh
+	if wr.err != nil {
+		return fmt.Errorf("cannot list saved worlds: %w", wr.err)
 	}
 
-	type result struct {
+	// Fetch join info for all running instances concurrently.
+	type joinResult struct {
+		label    string
 		joinInfo agentInfoResponse
 	}
-	results := make([]result, len(instances))
+	joinResults := make([]joinResult, len(ir.instances))
 	var wg sync.WaitGroup
-	for i, inst := range instances {
+	for i, inst := range ir.instances {
 		wg.Add(1)
-		go func(i int, ip string) {
+		go func(i int, label, ip string) {
 			defer wg.Done()
-			results[i] = result{joinInfo: fetchJoinInfo(ip)}
-		}(i, inst.MainIP)
+			joinResults[i] = joinResult{label: label, joinInfo: fetchJoinInfo(ip)}
+		}(i, inst.Label, inst.MainIP)
 	}
 	wg.Wait()
 
+	// Build a set of running labels for fast lookup.
+	running := make(map[string]agentInfoResponse, len(ir.instances))
+	for _, r := range joinResults {
+		running[r.label] = r.joinInfo
+	}
+
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "**%d server(s) running:**\n", len(instances))
-	for i, inst := range instances {
-		game := extractGameName(inst.Label)
-		world := extractWorldName(inst.Label)
-		if results[i].joinInfo.Ready {
-			fmt.Fprintf(&sb, "• `%s` world `%s` — join: `%s`\n", game, world, results[i].joinInfo.JoinInfo)
-		} else {
-			fmt.Fprintf(&sb, "• `%s` world `%s` — ⏳ still starting up\n", game, world)
+
+	// Running servers first.
+	if len(ir.instances) > 0 {
+		for _, inst := range ir.instances {
+			game := extractGameName(inst.Label)
+			world := extractWorldName(inst.Label)
+			info := running[inst.Label]
+			if info.Ready {
+				fmt.Fprintf(&sb, "• `%s` world `%s` — join: `%s`\n", game, world, info.JoinInfo)
+			} else {
+				fmt.Fprintf(&sb, "• `%s` world `%s` — ⏳ still starting up\n", game, world)
+			}
 		}
+	}
+
+	// Stopped worlds (saved in R2 but no running instance).
+	for _, gameName := range games.AllGameNames() {
+		for _, worldName := range wr.worlds[gameName] {
+			label := fmt.Sprintf("%s-%s", gameName, worldName)
+			if _, isRunning := running[label]; !isRunning {
+				fmt.Fprintf(&sb, "• `%s` world `%s` — stopped\n", gameName, worldName)
+			}
+		}
+	}
+
+	if sb.Len() == 0 {
+		return sendFollowup(ctx, interaction.Interaction, "No servers running and no saved worlds found.")
 	}
 	return sendFollowup(ctx, interaction.Interaction, sb.String())
 }

@@ -2,6 +2,7 @@ package gameServerManagerBot
 
 import (
 	"4dmiral/discordServerManager/internal/discord"
+	"4dmiral/discordServerManager/internal/games"
 	"4dmiral/discordServerManager/internal/secrets"
 	vultrlayer "4dmiral/discordServerManager/internal/vultr"
 	"context"
@@ -132,6 +133,32 @@ func (m *Manager) RotateSave(ctx context.Context, bucket, saveKey string) error 
 		return fmt.Errorf("rotate save: prune old backups: %w", err)
 	}
 	return nil
+}
+
+// ListSavedWorlds returns all world names that have a save in R2, grouped by game.
+// It uses ListObjectsV2 with a delimiter to find "directories" without reading file content.
+func (m *Manager) ListSavedWorlds(ctx context.Context, bucket string) (map[games.GameName][]string, error) {
+	result := map[games.GameName][]string{}
+	for _, gameName := range games.AllGameNames() {
+		meta, _ := games.Meta(gameName)
+		prefix := meta.SaveDirectory + "/"
+		out, err := m.s3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:    aws.String(bucket),
+			Prefix:    aws.String(prefix),
+			Delimiter: aws.String("/"),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list worlds for %s: %w", gameName, err)
+		}
+		for _, cp := range out.CommonPrefixes {
+			// CommonPrefix looks like "CoreKeeper/myworld/" — strip prefix and trailing slash
+			worldName := strings.TrimSuffix(strings.TrimPrefix(aws.ToString(cp.Prefix), prefix), "/")
+			if worldName != "" {
+				result[gameName] = append(result[gameName], worldName)
+			}
+		}
+	}
+	return result, nil
 }
 
 // GeneratePresignedGetURL returns a pre-signed S3 GET URL valid for the given duration.
