@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	AutoShutdownDuration  = 5 * time.Hour
+	AutoShutdownDuration  = 6 * time.Minute
 	autoShutdownGroupName = "gameServerAutoShutdown"
 )
 
@@ -104,6 +104,9 @@ func (m *Manager) HandleAutoShutdown(ctx context.Context, event AutoShutdownEven
 	log.Printf("auto-shutdown triggered for %q (guild %s)", event.Label, event.GuildID)
 
 	webhookURL := secrets.Secrets.GuildWebhooks[event.GuildID]
+	if webhookURL == "" {
+		log.Printf("warning: no webhook configured for guild %s — auto-shutdown notifications will not be sent", event.GuildID)
+	}
 	notify := func(msg string) {
 		if webhookURL == "" {
 			return
@@ -113,19 +116,20 @@ func (m *Manager) HandleAutoShutdown(ctx context.Context, event AutoShutdownEven
 		}
 	}
 
-	notify(fmt.Sprintf("⏰ Server `%s` has reached its 5-hour limit and is shutting down automatically...", event.Label))
+	worldName := extractWorldName(event.Label)
+	gameName := games.GameName(extractGameName(event.Label))
+
+	notify(fmt.Sprintf("⏰ `%s` world `%s` has reached its %s limit and is shutting down automatically...", gameName, worldName, formatDuration(AutoShutdownDuration)))
 
 	instance, err := m.vultrLayer.GetInstanceByLabel(ctx, event.Label)
 	if err != nil {
-		notify(fmt.Sprintf("❌ Auto-shutdown failed: could not find instance `%s`: %v", event.Label, err))
+		notify(fmt.Sprintf("❌ Auto-shutdown failed: could not find instance for `%s` world `%s`: %v", gameName, worldName, err))
 		return fmt.Errorf("auto-shutdown find instance: %w", err)
 	}
 
-	worldName := extractWorldName(event.Label)
-	gameName := games.GameName(extractGameName(event.Label))
 	meta, err := games.Meta(gameName)
 	if err != nil {
-		notify(fmt.Sprintf("❌ Auto-shutdown failed: unrecognised game in label `%s`: %v", event.Label, err))
+		notify(fmt.Sprintf("❌ Auto-shutdown failed: unrecognised game `%s`: %v", gameName, err))
 		return fmt.Errorf("auto-shutdown unknown game: %w", err)
 	}
 	s3Key := meta.SaveKey(worldName)
@@ -137,31 +141,31 @@ func (m *Manager) HandleAutoShutdown(ctx context.Context, event AutoShutdownEven
 
 	if err := m.checkAgentReady(instance.MainIP); err != nil {
 		log.Printf("auto-shutdown: agent not ready for %q, force-destroying without save: %v", event.Label, err)
-		notify(fmt.Sprintf("⚠️ Server `%s` agent was unreachable at shutdown time — destroying without saving.", event.Label))
+		notify(fmt.Sprintf("⚠️ `%s` world `%s` — agent unreachable at shutdown time, destroying without saving.", gameName, worldName))
 		if err := m.vultrLayer.DestroyInstance(ctx, instance.ID); err != nil {
 			notify(fmt.Sprintf("❌ Auto-shutdown: failed to destroy instance: %v", err))
 			return fmt.Errorf("auto-shutdown destroy (no-save path): %w", err)
 		}
-		notify(fmt.Sprintf("🗑️ Server `%s` destroyed (no save — agent was unreachable).", event.Label))
+		notify(fmt.Sprintf("🗑️ `%s` world `%s` destroyed (no save — agent was unreachable).", gameName, worldName))
 		return nil
 	}
 
 	if err := m.RotateSave(ctx, secrets.Secrets.R2BucketName, s3Key); err != nil {
-		notify(fmt.Sprintf("❌ Auto-shutdown: cannot back up existing save — shutdown cancelled for safety: %v", err))
+		notify(fmt.Sprintf("❌ Auto-shutdown: cannot back up existing save for `%s` world `%s` — shutdown cancelled for safety: %v", gameName, worldName, err))
 		return fmt.Errorf("auto-shutdown rotate save: %w", err)
 	}
 
 	if err := m.callAgentShutdown(ctx, instance.MainIP, uploadURL); err != nil {
-		notify(fmt.Sprintf("❌ Auto-shutdown: agent shutdown failed — instance NOT destroyed: %v", err))
+		notify(fmt.Sprintf("❌ `%s` world `%s` — agent shutdown failed, instance NOT destroyed: %v", gameName, worldName, err))
 		return fmt.Errorf("auto-shutdown agent: %w", err)
 	}
 
 	if err := m.vultrLayer.DestroyInstance(ctx, instance.ID); err != nil {
-		notify(fmt.Sprintf("❌ Auto-shutdown: failed to destroy instance: %v", err))
+		notify(fmt.Sprintf("❌ Auto-shutdown: failed to destroy instance for `%s` world `%s`: %v", gameName, worldName, err))
 		return fmt.Errorf("auto-shutdown destroy: %w", err)
 	}
 
-	notify(fmt.Sprintf("✅ Server `%s` auto-shutdown complete — world saved.", event.Label))
+	notify(fmt.Sprintf("✅ `%s` world `%s` auto-shutdown complete — world saved.", gameName, worldName))
 	return nil
 }
 
