@@ -47,8 +47,16 @@ func init() {
 				{
 					Type:        discordgo.ApplicationCommandOptionBoolean,
 					Name:        "new",
-					Description: "Create a fresh world instead of loading a save (default: false)",
+					Description: "Create a fresh world instead of loading a save",
 					Required:    true,
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionInteger,
+					Name:        "autoshutdown",
+					Description: "Auto-shutdown timer in minutes (10-300, default: 300)",
+					Required:    false,
+					MinValue:    func() *float64 { v := float64(10); return &v }(),
+					MaxValue:    300,
 				},
 			},
 		},
@@ -67,7 +75,7 @@ func init() {
 		},
 		{
 			Name:        CommandList,
-			Description: "List running game servers",
+			Description: "List running game servers and saved worlds",
 		},
 		{
 			Name:        CommandTest,

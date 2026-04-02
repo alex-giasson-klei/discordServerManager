@@ -18,8 +18,10 @@ import (
 )
 
 const (
-	AutoShutdownDuration  = 6 * time.Minute
-	autoShutdownGroupName = "gameServerAutoShutdown"
+	AutoShutdownDefaultDuration = 3 * time.Hour
+	AutoShutdownMaxDuration     = 5 * time.Hour
+	autoShutdownMinDuration     = 10 * time.Minute
+	autoShutdownGroupName       = "gameServerAutoShutdown"
 )
 
 // AutoShutdownEvent is the payload EventBridge Scheduler sends to the Lambda
@@ -42,8 +44,8 @@ func autoShutdownScheduleName(label string) string {
 }
 
 // CreateAutoShutdownSchedule registers a one-time EventBridge Scheduler rule
-// that will invoke this Lambda with an AutoShutdownEvent after autoShutdownDuration.
-func (m *Manager) CreateAutoShutdownSchedule(ctx context.Context, label, guildID string) error {
+// that will invoke this Lambda with an AutoShutdownEvent after the given duration.
+func (m *Manager) CreateAutoShutdownSchedule(ctx context.Context, label, guildID string, duration time.Duration) error {
 	scheduleName := autoShutdownScheduleName(label)
 
 	event := AutoShutdownEvent{
@@ -56,7 +58,7 @@ func (m *Manager) CreateAutoShutdownSchedule(ctx context.Context, label, guildID
 		return fmt.Errorf("marshal auto-shutdown event: %w", err)
 	}
 
-	fireAt := time.Now().UTC().Add(AutoShutdownDuration)
+	fireAt := time.Now().UTC().Add(duration)
 	expression := fmt.Sprintf("at(%s)", fireAt.Format("2006-01-02T15:04:05"))
 
 	_, err = m.schedulerClient.CreateSchedule(ctx, &scheduler.CreateScheduleInput{
@@ -119,7 +121,7 @@ func (m *Manager) HandleAutoShutdown(ctx context.Context, event AutoShutdownEven
 	worldName := extractWorldName(event.Label)
 	gameName := games.GameName(extractGameName(event.Label))
 
-	notify(fmt.Sprintf("⏰ `%s` world `%s` has reached its %s limit and is shutting down automatically...", gameName, worldName, formatDuration(AutoShutdownDuration)))
+	notify(fmt.Sprintf("⏰ `%s` world `%s` has reached its time limit and is shutting down automatically...", gameName, worldName))
 
 	instance, err := m.vultrLayer.GetInstanceByLabel(ctx, event.Label)
 	if err != nil {

@@ -113,7 +113,18 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 		webhookURL,
 	)
 
-	if err := m.CreateAutoShutdownSchedule(ctx, label, interaction.GuildID); err != nil {
+	shutdownDuration := AutoShutdownDefaultDuration
+	if minutes := optionInt(interaction, "autoshutdown"); minutes > 0 {
+		shutdownDuration = time.Duration(minutes) * time.Minute
+		if shutdownDuration < autoShutdownMinDuration {
+			shutdownDuration = autoShutdownMinDuration
+		}
+		if shutdownDuration > AutoShutdownMaxDuration {
+			shutdownDuration = AutoShutdownMaxDuration
+		}
+	}
+
+	if err := m.CreateAutoShutdownSchedule(ctx, label, interaction.GuildID, shutdownDuration); err != nil {
 		return fmt.Errorf("cannot create auto-shutdown schedule (instance NOT created): %w", err)
 	}
 
@@ -127,7 +138,7 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 
 	return sendFollowup(ctx, interaction.Interaction, fmt.Sprintf(
 		"`%s` world `%s` started. The Join Information will be posted in a few minutes when the server is ready! Auto-shutdown is in %s. To stop the server manually, use `/stopserver`",
-		gameName, worldName, formatDuration(AutoShutdownDuration),
+		gameName, worldName, formatDuration(shutdownDuration),
 	))
 }
 
@@ -149,4 +160,14 @@ func optionBool(interaction *discordgo.InteractionCreate, name string) bool {
 		}
 	}
 	return false
+}
+
+// optionInt returns the int64 value of a named slash-command option, or 0.
+func optionInt(interaction *discordgo.InteractionCreate, name string) int64 {
+	for _, opt := range interaction.ApplicationCommandData().Options {
+		if opt.Name == name {
+			return opt.IntValue()
+		}
+	}
+	return 0
 }
