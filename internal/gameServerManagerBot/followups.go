@@ -14,46 +14,6 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 )
 
-// acknowledgeInteraction sends a deferred response to Discord's interaction callback
-// endpoint immediately, allowing the Lambda to continue working before returning.
-func acknowledgeInteraction(interaction *discordgo.Interaction, acknowledgementResponse string) error {
-	if acknowledgementResponse == "" {
-		acknowledgementResponse = "Request received. This may take a few minutes..."
-	}
-
-	url := discord.BaseURL + fmt.Sprintf("/interactions/%s/%s/callback", interaction.ID, interaction.Token)
-
-	response := &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: acknowledgementResponse,
-		},
-	}
-	body, err := json.Marshal(response)
-	if err != nil {
-		return fmt.Errorf("failed to marshal acknowledgement: %w", err)
-	}
-
-	req, err := retryablehttp.NewRequest(http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("failed to create acknowledgement request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := retryablehttp.NewClient()
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send acknowledgement: %w", err)
-	}
-	defer resp.Body.Close()
-
-	log.Printf("acknowledgement response status: %d", resp.StatusCode)
-	if resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("discord API returned unexpected status for acknowledgement: %d", resp.StatusCode)
-	}
-	return nil
-}
-
 func sendFollowup(ctx context.Context, interaction *discordgo.Interaction, msg string) error {
 	if interaction == nil {
 		return fmt.Errorf("interaction is nil")

@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	lambdaSDK "github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/scheduler"
 )
@@ -46,10 +47,16 @@ func handler(ctx context.Context, rawEvent json.RawMessage) (interface{}, error)
 		return nil, fmt.Errorf("create scheduler client: %w", err)
 	}
 
-	bot := gameServerManagerBot.New(vultrLayer, r2Client, s3.NewPresignClient(r2Client), schedulerClient)
+	lambdaClient, err := newLambdaClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("create lambda client: %w", err)
+	}
 
-	// Function URL events always have a "requestContext" field.
+	bot := gameServerManagerBot.New(vultrLayer, r2Client, s3.NewPresignClient(r2Client), schedulerClient, lambdaClient)
+
+	// Detect event type by probing well-known fields.
 	var peek struct {
+		Type           *string          `json:"type"`
 		RequestContext *json.RawMessage `json:"requestContext"`
 	}
 	json.Unmarshal(rawEvent, &peek)
@@ -60,6 +67,14 @@ func handler(ctx context.Context, rawEvent json.RawMessage) (interface{}, error)
 			return nil, fmt.Errorf("unmarshal function URL event: %w", err)
 		}
 		return bot.HandleRequest(ctx, &req)
+	}
+
+	if peek.Type != nil && *peek.Type == "deferred_command" {
+		var payload gameServerManagerBot.DeferredCommandPayload
+		if err := json.Unmarshal(rawEvent, &payload); err != nil {
+			return nil, fmt.Errorf("unmarshal deferred command payload: %w", err)
+		}
+		return nil, bot.HandleDeferredCommand(ctx, payload.Interaction)
 	}
 
 	// Otherwise treat it as an EventBridge Scheduler auto-shutdown event.
@@ -91,6 +106,15 @@ func newR2Client(ctx context.Context) (*s3.Client, error) {
 		o.BaseEndpoint = &r2Endpoint
 		o.UsePathStyle = true
 	}), nil
+}
+
+// newLambdaClient builds a Lambda client using the Lambda's ambient IAM role.
+func newLambdaClient(ctx context.Context) (*lambdaSDK.Client, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load AWS config for lambda client: %w", err)
+	}
+	return lambdaSDK.NewFromConfig(cfg), nil
 }
 
 // newSchedulerClient builds an EventBridge Scheduler client using the

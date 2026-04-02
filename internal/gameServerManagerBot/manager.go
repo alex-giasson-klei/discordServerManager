@@ -20,22 +20,34 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/scheduler"
+	lambdaSDK "github.com/aws/aws-sdk-go-v2/service/lambda"
+	lambdaSDKTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/bwmarrin/discordgo"
 )
+
+// DeferredCommandPayload is sent from the sync Lambda invocation to an async
+// self-invocation so that long-running work happens outside the 3-second
+// Discord response window.
+type DeferredCommandPayload struct {
+	Type        string               `json:"type"` // always "deferred_command"
+	Interaction discordgo.Interaction `json:"interaction"`
+}
 
 type Manager struct {
 	vultrLayer      *vultrlayer.VultrLayer
 	s3Client        *s3.Client
 	s3Presigner     *s3.PresignClient
 	schedulerClient *scheduler.Client
+	lambdaClient    *lambdaSDK.Client
 }
 
-func New(vultrLayer *vultrlayer.VultrLayer, s3Client *s3.Client, s3Presigner *s3.PresignClient, schedulerClient *scheduler.Client) *Manager {
+func New(vultrLayer *vultrlayer.VultrLayer, s3Client *s3.Client, s3Presigner *s3.PresignClient, schedulerClient *scheduler.Client, lambdaClient *lambdaSDK.Client) *Manager {
 	return &Manager{
 		vultrLayer:      vultrLayer,
 		s3Client:        s3Client,
 		s3Presigner:     s3Presigner,
 		schedulerClient: schedulerClient,
+		lambdaClient:    lambdaClient,
 	}
 }
 
@@ -214,15 +226,25 @@ func (m *Manager) handleInteraction(ctx context.Context, interaction discordgo.I
 		}
 
 		if result.DeferredWork != nil {
-			if ackErr := acknowledgeInteraction(&interaction, result.AcknowledgementResponse); ackErr != nil {
-				log.Printf("Failed to acknowledge interaction: %s", ackErr)
+			if err := m.invokeSelf(ctx, interaction); err != nil {
+				log.Printf("failed to invoke self async: %s", err)
+				return discordErrorResponse(fmt.Errorf("failed to start background processing: %w", err))
 			}
-			if workErr := result.DeferredWork(); workErr != nil {
-				log.Printf("Error in deferred work: %s", workErr)
-				if followupErr := sendFollowup(ctx, &interaction, fmt.Sprintf("❌ Error: %s", workErr.Error())); followupErr != nil {
-					log.Printf("Failed to send error followup: %s", followupErr)
-				}
+			ackResp := &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: result.AcknowledgementResponse,
+				},
 			}
+			body, err := json.Marshal(ackResp)
+			if err != nil {
+				return events.LambdaFunctionURLResponse{}, fmt.Errorf("can't marshal ack response: %w", err)
+			}
+			return events.LambdaFunctionURLResponse{
+				StatusCode: 200,
+				Body:       string(body),
+				Headers:    map[string]string{"Content-Type": "application/json"},
+			}, nil
 		}
 
 		body, err := json.Marshal(result.Response)
@@ -239,8 +261,28 @@ func (m *Manager) handleInteraction(ctx context.Context, interaction discordgo.I
 	}
 }
 
-func unknownCommandResponse() (events.LambdaFunctionURLResponse, error) {
-	resp := discordgo.InteractionResponse{
+// invokeSelf asynchronously invokes this Lambda with a DeferredCommandPayload
+// so that long-running work runs outside Discord's 3-second response window.
+func (m *Manager) invokeSelf(ctx context.Context, interaction discordgo.Interaction) error {
+	payload, err := json.Marshal(DeferredCommandPayload{
+		Type:        "deferred_command",
+		Interaction: interaction,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal deferred command payload: %w", err)
+	}
+	_, err = m.lambdaClient.Invoke(ctx, &lambdaSDK.InvokeInput{
+		FunctionName:   aws.String(secrets.Secrets.LambdaFunctionARN),
+		InvocationType: lambdaSDKTypes.InvocationTypeEvent,
+		Payload:        payload,
+	})
+	if err != nil {
+		return fmt.Errorf("invoke self async: %w", err)
+	}
+	return nil
+}
+
+func unknownCommandResponse() (events.LambdaFunctionURLResponse, error) {	resp := discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: "Unknown command",
