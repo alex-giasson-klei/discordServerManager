@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	saveURLExpiry  = 24 * time.Hour
-	agentBinaryKey = "bin/gameserver-agent"
-	agentPort      = 8080
+	saveURLExpiry          = 24 * time.Hour
+	agentBinaryKey         = "bin/gameserver-agent"
+	agentPort              = 8080
+	autoShutdownOptionName = "autoshutdown"
 )
 
 func handlerStartServer(ctx context.Context, interaction *discordgo.InteractionCreate, manager *Manager) (*HandlerResult, error) {
@@ -114,16 +115,16 @@ func (m *Manager) startServer(ctx context.Context, interaction *discordgo.Intera
 	)
 
 	shutdownDuration := AutoShutdownDefaultDuration
-	if timerStr := optionString(interaction, "auto_shutdown_timer"); timerStr != "" {
+	if timerStr := optionString(interaction, autoShutdownOptionName); timerStr != "" {
 		parsed, err := time.ParseDuration(timerStr)
 		if err != nil {
-			return fmt.Errorf("invalid auto_shutdown_timer %q — use a format like 2h, 30m, or 1h30m", timerStr)
+			return fmt.Errorf("invalid autoshutdown %q — use a format like 2h, 30m, or 1h30m", timerStr)
 		}
 		if parsed < autoShutdownMinDuration {
-			return fmt.Errorf("auto_shutdown_timer must be at least %s", formatDuration(autoShutdownMinDuration))
+			return fmt.Errorf("autoshutdown must be at least %s", formatDuration(autoShutdownMinDuration))
 		}
 		if parsed > AutoShutdownMaxDuration {
-			return fmt.Errorf("auto_shutdown_timer must be at most %s", formatDuration(AutoShutdownMaxDuration))
+			return fmt.Errorf("autoshutdown must be at most %s", formatDuration(AutoShutdownMaxDuration))
 		}
 		shutdownDuration = parsed
 	}

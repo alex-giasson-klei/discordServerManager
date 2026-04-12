@@ -24,7 +24,7 @@ updateAWS:
     --maximum-retry-attempts 0 \
     --no-cli-pager \
     --profile ajgia
-deploy: buildLambda registerCommands package updateAWS uploadGameserverAgent
+deploy: buildLambda registerCommands package updateAWS
 invoke:
 	aws lambda invoke --function-name discordGameServerBot \
 	--cli-binary-format raw-in-base64-out \

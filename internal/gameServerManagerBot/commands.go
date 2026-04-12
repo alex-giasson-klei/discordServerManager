@@ -52,7 +52,7 @@ func init() {
 				},
 				{
 					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "autoshutdown",
+					Name:        autoShutdownOptionName,
 					Description: "How long before auto-shutdown, e.g. 3h, 30m, 4h30m (min: 10m, max: 5h, default: 3h)",
 					Required:    false,
 				},
