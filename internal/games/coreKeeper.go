@@ -55,6 +55,7 @@ docker run -d \
     -e MAX_PLAYERS=5 \
     -e DISCORD_WEBHOOK_URL="%s" \
     -e DISCORD_PLAYER_LEAVE_ENABLED=false \
+	-e DISCORD_SERVER_STOP_ENABLED=false \
     -v /tmp/core-keeper-data:/home/steam/core-keeper-data \
     -v /tmp/core-keeper-dedicated:/home/steam/core-keeper-dedicated \
     escaping/core-keeper-dedicated:v2.8.1
